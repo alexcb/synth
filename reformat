@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+# Dude where's my makefile?
+
+find -regex '.*\.\(c\|h\)$' -exec clang-format -i {} \;

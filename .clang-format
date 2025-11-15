@@ -1,0 +1,7 @@
+---
+BasedOnStyle: WebKit
+UseTab: ForIndentation
+IndentWidth: 8
+TabWidth: 8
+InsertBraces: true
+InsertNewlineAtEOF: true
