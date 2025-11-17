@@ -1,0 +1,25 @@
+#!/usr/bin/bash
+set -e
+
+function restart {
+	if [ -n "$PID" ]; then
+		echo "killing $PID"
+		kill -9 $PID
+	fi
+	./a.out &
+	PID=$!
+	echo "started $PID"
+}
+
+function cleanup() {
+	echo cleanup
+	if [ -n "$PID" ]; then
+		echo "killing $PID"
+		kill -9 $PID
+	fi
+	exit 1
+}
+trap cleanup SIGINT
+
+restart
+while true; do inotifywait -e close_write patch || true; restart; echo d; done
