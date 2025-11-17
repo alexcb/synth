@@ -29,6 +29,7 @@
 #define WAVE_TYPE_SQUARE 5
 #define WAVE_TYPE_PULSE12 6
 #define WAVE_TYPE_PULSE25 7
+#define WAVE_TYPE_RAND 8
 
 struct osc {
 	float freq;
@@ -41,6 +42,122 @@ struct osc {
 	float output;
 	float output_volume;
 };
+
+int parse_wave_type(const char* s)
+{
+	if (strcasecmp, (s, "none") == 0) {
+		return WAVE_TYPE_NONE;
+	}
+	if (strcasecmp(s, "sine") == 0) {
+		return WAVE_TYPE_SINE;
+	}
+	if (strcasecmp(s, "triangle") == 0) {
+		return WAVE_TYPE_TRIANGLE;
+	}
+	if (strcasecmp(s, "saw_up") == 0) {
+		return WAVE_TYPE_SAW_UP;
+	}
+	if (strcasecmp(s, "saw_down") == 0) {
+		return WAVE_TYPE_SAW_DOWN;
+	}
+	if (strcasecmp(s, "square") == 0) {
+		return WAVE_TYPE_SQUARE;
+	}
+	if (strcasecmp(s, "pulse12") == 0) {
+		return WAVE_TYPE_PULSE12;
+	}
+	if (strcasecmp(s, "pulse25") == 0) {
+		return WAVE_TYPE_PULSE25;
+	}
+	if (strcasecmp(s, "random") == 0) {
+		return WAVE_TYPE_RAND;
+	}
+	fprintf(stderr, "unknown wave type: %s\n", s);
+	return 0;
+}
+
+int parse_osc(const char* s, int* n)
+{
+	if (strncmp(s, "osc", 3) != 0) {
+		return 1;
+	}
+	s += 3;
+	*n = atoi(s);
+	return 0;
+}
+
+int load_patch(const char* path, struct osc* oscs)
+{
+	FILE* fp;
+	fp = fopen(path, "r");
+	if (fp == NULL) {
+		return 1;
+	}
+
+	int n, m;
+
+	struct osc* osc = NULL;
+	char buffer[256];
+	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+		int i = 0;
+		n = strlen(buffer);
+		if (buffer[0] == '#') {
+			continue;
+		}
+		for (int j = n - 1; j >= 0; j--) {
+			if (buffer[j] == '\n') {
+				buffer[j] = '\0';
+				n--;
+			}
+		}
+		if (buffer[0] == '[' && buffer[n - 1] == ']') {
+			buffer[n - 1] = '\0';
+			char* s = &buffer[1];
+			sscanf(s, "osc%d", &i);
+			if (i < 1 || i > NUM_OSCS) {
+				fprintf(stderr, "err: expected osc number in range 1-10, got %d\n", i);
+				return 1;
+			}
+			osc = &oscs[i - 1];
+			continue;
+		}
+		if (osc == NULL) {
+			continue;
+		}
+		char* v = strstr(buffer, "=");
+		if (v == NULL) {
+			continue;
+		}
+		m = v - buffer - 1;
+		*v = '\0';
+		v++;
+		if (strcmp(buffer, "type") == 0) {
+			osc->wave_type = parse_wave_type(v);
+		} else if (strcmp(buffer, "freq") == 0) {
+			osc->freq = atof(v);
+		} else if (strcmp(buffer, "output") == 0) {
+			osc->output_volume = atof(v);
+		} else if (strcmp(buffer, "phase_input") == 0) {
+			if (parse_osc(v, &i) == 0) {
+				osc->phase_input = &oscs[i - 1];
+			}
+		} else if (strcmp(buffer, "phase_input_m") == 0) {
+			osc->phase_input_m = atof(v);
+		} else if (strcmp(buffer, "amp_input") == 0) {
+			if (parse_osc(v, &i) == 0) {
+				osc->amp_input = &oscs[i - 1];
+			}
+		} else if (strcmp(buffer, "amp_input_m") == 0) {
+			osc->amp_input_m = atof(v);
+		} else if (strcmp(buffer, "detune") == 0) {
+			osc->detune = atof(v);
+		} else {
+			printf("unhandled line %s\n", buffer);
+		}
+	}
+
+	fclose(fp);
+}
 
 void osc_set_output(struct osc* osc, float t)
 {
@@ -57,49 +174,60 @@ void osc_set_output(struct osc* osc, float t)
 	float period = 1.0 / freq;
 	float tt = fmod(t, period);
 
-	if (osc->wave_type == WAVE_TYPE_TRIANGLE) {
-		printf("WAVE_TYPE_TRIANGLE TODO\n");
+	switch (osc->wave_type) {
+
+	case WAVE_TYPE_TRIANGLE: {
+		if (tt < period / 2.0) {
+			osc->output = -1.0 + (2.0 * tt * 2) / period;
+		} else {
+			osc->output = 1.0 - (2.0 * (tt * 2 - period)) / period;
+		}
+		break;
 	}
 
-	if (osc->wave_type == WAVE_TYPE_SAW_UP) {
+	case WAVE_TYPE_SAW_UP: {
 		osc->output = -1.0 + (2.0 * tt) / period;
-		// printf("%f\n", osc->output);
+		break;
 	}
 
-	if (osc->wave_type == WAVE_TYPE_SAW_DOWN) {
+	case WAVE_TYPE_SAW_DOWN: {
 		osc->output = 1.0 - (2.0 * tt) / period;
+		break;
 	}
 
-	if (osc->wave_type == WAVE_TYPE_SINE) {
+	case WAVE_TYPE_SINE: {
 		int i = (tt * SINE_POINTS) / period;
 		if (i > SINE_POINTS || i < 0) {
 			i = 0;
 		}
 		osc->output = sine_table[i];
+		break;
 	}
 
-	if (osc->wave_type == WAVE_TYPE_SQUARE) {
+	case WAVE_TYPE_SQUARE: {
 		if (tt < period / 2.0) {
+			osc->output = 1.0;
+		} else {
+			osc->output = -1.0;
+		}
+		break;
+	}
+
+	case WAVE_TYPE_PULSE12: {
+		if (tt < period / 8.0) {
 			osc->output = 1.0;
 		} else {
 			osc->output = -1.0;
 		}
 	}
 
-	if (osc->wave_type == WAVE_TYPE_PULSE25) {
+	case WAVE_TYPE_PULSE25: {
 		if (tt < period / 4.0) {
 			osc->output = 1.0;
 		} else {
 			osc->output = -1.0;
 		}
 	}
-
-	if (osc->wave_type == WAVE_TYPE_PULSE12) {
-		if (tt < period / 8.0) {
-			osc->output = 1.0;
-		} else {
-			osc->output = -1.0;
-		}
 	}
 
 	if (osc->amp_input && osc->amp_input->wave_type) {
@@ -137,31 +265,13 @@ int main(int argc, char** argv, char** env)
 	struct osc* oscs = malloc(n);
 	memset(oscs, 0, n);
 
-	oscs[0].freq = 440.0f;
-	oscs[0].wave_type = WAVE_TYPE_SQUARE;
-	oscs[0].output_volume = 1.0f;
-	oscs[0].phase_input = &oscs[0];
-	oscs[0].phase_input_m = 1.1;
-	oscs[0].amp_input = &oscs[1];
-	oscs[0].amp_input_m = 0.5;
+	load_patch("patch", oscs);
 
-	oscs[1].freq = 10.0f;
-	oscs[1].detune = 0.0f;
-	oscs[1].wave_type = WAVE_TYPE_SINE;
-	oscs[1].phase_input = &oscs[2];
-	oscs[1].phase_input_m = 1.3;
-	oscs[1].amp_input = &oscs[3];
-	oscs[1].amp_input_m = 4.0;
-
-	oscs[2].freq = 0.3f;
-	oscs[2].wave_type = WAVE_TYPE_SQUARE;
-
-	oscs[3].freq = 0.3f;
-	oscs[3].wave_type = WAVE_TYPE_SAW_UP;
-
-	// oscs[3].freq = 410.0f;
-	// oscs[3].wave_type = WAVE_TYPE_SQUARE;
-	// oscs[3].output_volume = 1.0f;
+	for (int i = 0; i < NUM_OSCS; i++) {
+		if (oscs[i].freq == 0) {
+			oscs[i].freq = 440.0f;
+		}
+	}
 
 	uint32_t buf_valid_len = 0;
 	for (uint32_t i = 0; i < buf_num_samples; i++) {

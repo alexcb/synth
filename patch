@@ -1,0 +1,15 @@
+[osc1]
+type=SQUARE
+output=1.0
+phase_input=osc2
+phase_input_m=11.0
+amp_input=osc3
+amp_input_m=1.0
+
+[osc2]
+type=SINE
+freq=10
+
+[osc3]
+type=SAW_DOWN
+freq=0.8
