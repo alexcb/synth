@@ -58,8 +58,37 @@ struct osc {
 	float amp_input_m;
 	struct osc* amp_input;
 	float output;
-	float output_volume;
+	float output_volume_m;
+	float output_volume; // based on ARSD
+	float output_volume_at_release;
+	float velocity;
+	float pressed_at;
+	float released_at;
+	float attack; // time from 0 to 1
+	float release; // time from 1 to sustain level
+	float sustain; // level ranging from 0 to 1
+	float decay; // time from sustain level to 0
 };
+
+float ars_level(float t, float attack, float release, float sustain)
+{
+	if (t < attack) {
+		return t / attack;
+	}
+	t -= attack;
+	if (t < release) {
+		return 1.0 - t / release * (1.0 - sustain);
+	}
+	t -= release;
+	return sustain;
+}
+float d_level(float t, float orig_vol, float decay)
+{
+	if (t > decay) {
+		return 0.f;
+	}
+	return orig_vol * (1.0 - t / decay);
+}
 
 int parse_wave_type(const char* s)
 {
@@ -154,7 +183,7 @@ int load_patch(const char* path, struct osc* oscs)
 		} else if (strcmp(buffer, "freq") == 0) {
 			osc->freq = atof(v);
 		} else if (strcmp(buffer, "output") == 0) {
-			osc->output_volume = atof(v);
+			osc->output_volume_m = atof(v);
 		} else if (strcmp(buffer, "phase_input") == 0) {
 			if (parse_osc(v, &i) == 0) {
 				osc->phase_input = &oscs[i - 1];
@@ -261,6 +290,21 @@ void osc_set_output(struct osc* osc, float t)
 	} else if (osc->output < -1.0) {
 		osc->output = -1.0;
 	}
+
+	// ASDR filtering
+	if (osc->pressed_at > osc->released_at) {
+		float time_since_press = t - osc->pressed_at;
+		osc->output_volume = ars_level(time_since_press, osc->attack, osc->release, osc->sustain);
+		osc->output_volume_at_release = osc->output_volume;
+	} else if (osc->released_at > osc->pressed_at) {
+		float time_since_release = t - osc->released_at;
+		osc->output_volume = d_level(time_since_release, osc->output_volume_at_release, osc->decay);
+		if (osc->output_volume <= 0.f) {
+			// we're done
+			osc->pressed_at = 0.f;
+			osc->released_at = 0.f;
+		}
+	}
 }
 
 int main(int argc, char** argv, char** env)
@@ -289,20 +333,42 @@ int main(int argc, char** argv, char** env)
 
 	load_patch("patch", oscs);
 
-	for (int i = 0; i < NUM_OSCS; i++) {
-		if (oscs[i].freq == 0) {
-			oscs[i].freq = 440.0f;
-		}
-	}
-
 	uint32_t buf_valid_len = 0;
 	for (uint32_t i = 0; i < buf_num_samples; i++) {
 		float t = (i * 1.f) / RATE;
 
+		if (i == 10) {
+			// simulate a key press
+			printf("pressed at %f\n", t);
+			for (int i = 0; i < NUM_OSCS; i++) {
+				if (oscs[i].freq == 0) {
+					oscs[i].freq = 440.0f;
+					oscs[i].velocity = 1.0f;
+					oscs[i].pressed_at = t;
+					oscs[i].released_at = 0.0f;
+
+					// TODO move to patch
+					oscs[i].attack = 1.0f;
+					oscs[i].decay = 1.0f;
+					oscs[i].sustain = 0.2f;
+					oscs[i].release = 1.0f;
+				}
+			}
+		}
+		if (i == 176401) {
+			// approx 5 seconds after
+			printf("released at %f\n", t);
+			for (int i = 0; i < NUM_OSCS; i++) {
+				if (oscs[i].pressed_at > 0.f) {
+					oscs[i].released_at = t;
+				}
+			}
+		}
+
 		float output = 0.0f;
 		for (int i = 0; i < NUM_OSCS; i++) {
 			osc_set_output(&oscs[i], t);
-			output += oscs[i].output * oscs[i].output_volume;
+			output += oscs[i].output * oscs[i].output_volume * oscs[i].output_volume_m;
 		}
 
 		if (output > 1.0f) {
