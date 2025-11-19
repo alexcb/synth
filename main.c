@@ -68,29 +68,29 @@ struct osc {
 	float pressed_at;
 	float released_at;
 	float attack; // time from 0 to 1
-	float release; // time from 1 to sustain level
+	float decay; // time from 1 to sustain level
 	float sustain; // level ranging from 0 to 1
-	float decay; // time from sustain level to 0
+	float release; // time from sustain level to 0
 };
 
-float ars_level(float t, float attack, float release, float sustain)
+float ads_level(float t, float attack, float decay, float sustain)
 {
 	if (t < attack) {
 		return t / attack;
 	}
 	t -= attack;
-	if (t < release) {
-		return 1.0 - t / release * (1.0 - sustain);
+	if (t < decay) {
+		return 1.0 - t / decay * (1.0 - sustain);
 	}
-	t -= release;
+	t -= decay;
 	return sustain;
 }
-float d_level(float t, float orig_vol, float decay)
+float r_level(float t, float orig_vol, float release)
 {
-	if (t > decay) {
+	if (t > release) {
 		return 0.f;
 	}
-	return orig_vol * (1.0 - t / decay);
+	return orig_vol * (1.0 - t / release);
 }
 
 int parse_wave_type(const char* s)
@@ -199,8 +199,14 @@ int load_patch(const char* path, struct osc* oscs)
 			}
 		} else if (strcmp(buffer, "amp_input_m") == 0) {
 			osc->amp_input_m = atof(v);
-		} else if (strcmp(buffer, "detune") == 0) {
-			osc->detune = atof(v);
+		} else if (strcmp(buffer, "attack") == 0) {
+			osc->attack = atof(v);
+		} else if (strcmp(buffer, "decay") == 0) {
+			osc->decay = atof(v);
+		} else if (strcmp(buffer, "sustain") == 0) {
+			osc->sustain = atof(v);
+		} else if (strcmp(buffer, "release") == 0) {
+			osc->release = atof(v);
 		} else {
 			printf("unhandled line %s\n", buffer);
 		}
@@ -269,6 +275,7 @@ void osc_set_output(struct osc* osc, float t)
 		} else {
 			osc->output = -1.0;
 		}
+		break;
 	}
 
 	case WAVE_TYPE_PULSE25: {
@@ -277,10 +284,12 @@ void osc_set_output(struct osc* osc, float t)
 		} else {
 			osc->output = -1.0;
 		}
+		break;
 	}
 
 	case WAVE_TYPE_RAND: {
 		osc->output = bad_normalf();
+		break;
 	}
 	}
 
@@ -296,16 +305,14 @@ void osc_set_output(struct osc* osc, float t)
 
 	// ASDR filtering
 	if (osc->pressed_at > osc->released_at) {
-		printf("on\n");
 		float time_since_press = t - osc->pressed_at;
-		osc->output_volume = ars_level(time_since_press, osc->attack, osc->release, osc->sustain);
+		osc->output_volume = ads_level(time_since_press, osc->attack, osc->decay, osc->sustain);
 		osc->output_volume_at_release = osc->output_volume;
 	} else if (osc->released_at > osc->pressed_at) {
 		float time_since_release = t - osc->released_at;
-		osc->output_volume = d_level(time_since_release, osc->output_volume_at_release, osc->decay);
+		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->decay);
 		if (osc->output_volume <= 0.f) {
 			// we're done
-			printf("off\n");
 			osc->pressed_at = 0.f;
 			osc->released_at = 0.f;
 		}
@@ -392,7 +399,7 @@ int main(int argc, char** argv, char** env)
 	for (;;) {
 
 		for (uint32_t i = 0; i < buf_num_samples; i++) {
-			t += (1.f) / RATE;
+			t += 1.f / RATE;
 
 			float freq = get_freq(getch());
 			if (freq > 0.f) {
@@ -405,12 +412,6 @@ int main(int argc, char** argv, char** env)
 						oscs[i].velocity = 1.0f;
 						oscs[i].pressed_at = t;
 						oscs[i].released_at = 0.0f;
-
-						// TODO move to patch
-						oscs[i].attack = 1.0f;
-						oscs[i].decay = 1.0f;
-						oscs[i].sustain = 0.2f;
-						oscs[i].release = 1.0f;
 					}
 				}
 			}

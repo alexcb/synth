@@ -23,3 +23,10 @@ adjust the amplitude (volume) using a different oscillator:
 
     amp_input=osc1, osc2, ..., or osc10
     amp_input_m=<float>, which multiplies the input oscillator level
+
+envelope settings
+
+    attack=1.0
+    release=1.0
+    sustain=0.2
+    decay=1.0
