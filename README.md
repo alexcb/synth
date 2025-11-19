@@ -30,3 +30,11 @@ envelope settings
     release=1.0
     sustain=0.2
     decay=1.0
+
+creating an LFO
+
+    freq=<float>, if set the oscillator will use this freq instead of input keys
+
+freq multiplier
+
+    freq_m=<float>

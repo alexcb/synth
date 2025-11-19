@@ -53,6 +53,7 @@ float bad_normalf()
 
 struct osc {
 	float freq;
+	float freq_m;
 	bool input;
 	float detune;
 	int wave_type;
@@ -185,6 +186,8 @@ int load_patch(const char* path, struct osc* oscs)
 			osc->wave_type = parse_wave_type(v);
 		} else if (strcmp(buffer, "freq") == 0) {
 			osc->freq = atof(v);
+		} else if (strcmp(buffer, "freq_m") == 0) {
+			osc->freq_m = atof(v);
 		} else if (strcmp(buffer, "output") == 0) {
 			osc->output_volume_m = atof(v);
 		} else if (strcmp(buffer, "phase_input") == 0) {
@@ -221,7 +224,7 @@ void osc_set_output(struct osc* osc, float t)
 		return;
 	}
 
-	float freq = osc->freq;
+	float freq = osc->freq * osc->freq_m;
 	freq = exp2f(log2f(freq) + osc->detune);
 	if (osc->phase_input && osc->phase_input->wave_type) {
 		freq += osc->phase_input->output * osc->phase_input_m;
@@ -392,6 +395,9 @@ int main(int argc, char** argv, char** env)
 		if (oscs[i].freq == 0) {
 			oscs[i].input = true;
 		}
+		if (oscs[i].freq_m == 0) {
+			oscs[i].freq_m = 1.0;
+		}
 	}
 
 	float t = 0.f;
@@ -404,8 +410,8 @@ int main(int argc, char** argv, char** env)
 			float freq = get_freq(getch());
 			if (freq > 0.f) {
 				// simulate a key press
-				//printf("pressed at %f\n", t);
-				release_at = t + 0.1; // hold for 1/10 of a second
+				// printf("pressed at %f\n", t);
+				release_at = t + 0.5; // hold for 1/10 of a second
 				for (int i = 0; i < NUM_OSCS; i++) {
 					if (oscs[i].input == true) {
 						oscs[i].freq = freq;
@@ -418,7 +424,7 @@ int main(int argc, char** argv, char** env)
 			if (release_at != 0.f && release_at < t) {
 				release_at = 0.f;
 				// approx 5 seconds after
-				//printf("released at %f\n", t);
+				// printf("released at %f\n", t);
 				for (int i = 0; i < NUM_OSCS; i++) {
 					if (oscs[i].pressed_at > 0.f) {
 						oscs[i].released_at = t;
