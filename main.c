@@ -15,6 +15,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <ncurses.h>
+
 #include "sine_table.h"
 
 #define RATE 44100
@@ -51,6 +53,7 @@ float bad_normalf()
 
 struct osc {
 	float freq;
+	bool input;
 	float detune;
 	int wave_type;
 	float phase_input_m;
@@ -293,6 +296,7 @@ void osc_set_output(struct osc* osc, float t)
 
 	// ASDR filtering
 	if (osc->pressed_at > osc->released_at) {
+		printf("on\n");
 		float time_since_press = t - osc->pressed_at;
 		osc->output_volume = ars_level(time_since_press, osc->attack, osc->release, osc->sustain);
 		osc->output_volume_at_release = osc->output_volume;
@@ -301,14 +305,46 @@ void osc_set_output(struct osc* osc, float t)
 		osc->output_volume = d_level(time_since_release, osc->output_volume_at_release, osc->decay);
 		if (osc->output_volume <= 0.f) {
 			// we're done
+			printf("off\n");
 			osc->pressed_at = 0.f;
 			osc->released_at = 0.f;
 		}
 	}
 }
 
+float get_freq(const char c)
+{
+	switch (c) {
+	case 'z':
+		return 261.626;
+	case 'x':
+		return 277.183;
+	case 'c':
+		return 293.665;
+	case 'v':
+		return 311.127;
+	case 'b':
+		return 329.628;
+	case 'n':
+		return 349.228;
+	case 'm':
+		return 369.994;
+	case ',':
+		return 391.995;
+	case '.':
+		return 415.305;
+	case '/':
+		return 440.000;
+	default:
+		return 0.0f;
+	}
+}
+
 int main(int argc, char** argv, char** env)
 {
+
+	bool interactive = true;
+
 	static const pa_sample_spec ss = {
 		.format = PA_SAMPLE_S16LE, .rate = RATE, .channels = 1
 	};
@@ -321,9 +357,22 @@ int main(int argc, char** argv, char** env)
 		    pa_strerror(error));
 		assert(0);
 	}
-	size_t buf_seconds = 60;
 
-	size_t buf_num_samples = buf_seconds * RATE;
+	if (interactive) {
+		initscr();
+		cbreak();
+		noecho();
+		keypad(stdscr, TRUE);
+		nodelay(stdscr, TRUE);
+	}
+
+	// size_t buf_seconds = 60;
+
+	size_t chunk = 100;
+
+	assert(RATE % chunk == 0);
+
+	size_t buf_num_samples = RATE / chunk;
 	char* buf = malloc(sizeof(int16_t) * buf_num_samples);
 	memset(buf, 0, sizeof(int16_t) * buf_num_samples);
 
@@ -332,63 +381,74 @@ int main(int argc, char** argv, char** env)
 	memset(oscs, 0, n);
 
 	load_patch("patch", oscs);
-
-	uint32_t buf_valid_len = 0;
-	for (uint32_t i = 0; i < buf_num_samples; i++) {
-		float t = (i * 1.f) / RATE;
-
-		if (i == 10) {
-			// simulate a key press
-			printf("pressed at %f\n", t);
-			for (int i = 0; i < NUM_OSCS; i++) {
-				if (oscs[i].freq == 0) {
-					oscs[i].freq = 440.0f;
-					oscs[i].velocity = 1.0f;
-					oscs[i].pressed_at = t;
-					oscs[i].released_at = 0.0f;
-
-					// TODO move to patch
-					oscs[i].attack = 1.0f;
-					oscs[i].decay = 1.0f;
-					oscs[i].sustain = 0.2f;
-					oscs[i].release = 1.0f;
-				}
-			}
+	for (int i = 0; i < NUM_OSCS; i++) {
+		if (oscs[i].freq == 0) {
+			oscs[i].input = true;
 		}
-		if (i == 176401) {
-			// approx 5 seconds after
-			printf("released at %f\n", t);
-			for (int i = 0; i < NUM_OSCS; i++) {
-				if (oscs[i].pressed_at > 0.f) {
-					oscs[i].released_at = t;
-				}
-			}
-		}
-
-		float output = 0.0f;
-		for (int i = 0; i < NUM_OSCS; i++) {
-			osc_set_output(&oscs[i], t);
-			output += oscs[i].output * oscs[i].output_volume * oscs[i].output_volume_m;
-		}
-
-		if (output > 1.0f) {
-			output = 1.0f;
-		} else if (output < -1.0f) {
-			output = -1.0f;
-		}
-
-		int16_t data = output * 32700;
-
-		((int16_t*)buf)[i] = data;
-		buf_valid_len = i;
 	}
 
-	int num_repeat_plays = 1;
-	for (int i = 0; i < num_repeat_plays; i++) {
-		int n = 2 * buf_valid_len;
-		int res = pa_simple_write(pa_handle, buf, n, &error);
-		if (res < 0) {
-			fprintf(stderr, "res=%d err=%d pa_simple_write failed", res, error);
+	float t = 0.f;
+	float release_at = 0.f;
+	for (;;) {
+
+		for (uint32_t i = 0; i < buf_num_samples; i++) {
+			t += (1.f) / RATE;
+
+			float freq = get_freq(getch());
+			if (freq > 0.f) {
+				// simulate a key press
+				//printf("pressed at %f\n", t);
+				release_at = t + 0.1; // hold for 1/10 of a second
+				for (int i = 0; i < NUM_OSCS; i++) {
+					if (oscs[i].input == true) {
+						oscs[i].freq = freq;
+						oscs[i].velocity = 1.0f;
+						oscs[i].pressed_at = t;
+						oscs[i].released_at = 0.0f;
+
+						// TODO move to patch
+						oscs[i].attack = 1.0f;
+						oscs[i].decay = 1.0f;
+						oscs[i].sustain = 0.2f;
+						oscs[i].release = 1.0f;
+					}
+				}
+			}
+			if (release_at != 0.f && release_at < t) {
+				release_at = 0.f;
+				// approx 5 seconds after
+				//printf("released at %f\n", t);
+				for (int i = 0; i < NUM_OSCS; i++) {
+					if (oscs[i].pressed_at > 0.f) {
+						oscs[i].released_at = t;
+					}
+				}
+			}
+
+			float output = 0.0f;
+			for (int i = 0; i < NUM_OSCS; i++) {
+				osc_set_output(&oscs[i], t);
+				output += oscs[i].output * oscs[i].output_volume * oscs[i].output_volume_m;
+			}
+
+			if (output > 1.0f) {
+				output = 1.0f;
+			} else if (output < -1.0f) {
+				output = -1.0f;
+			}
+
+			int16_t data = output * 32700;
+
+			((int16_t*)buf)[i] = data;
+		}
+
+		int num_repeat_plays = 1;
+		for (int i = 0; i < num_repeat_plays; i++) {
+			int n = 2 * buf_num_samples;
+			int res = pa_simple_write(pa_handle, buf, n, &error);
+			if (res < 0) {
+				fprintf(stderr, "res=%d err=%d pa_simple_write failed", res, error);
+			}
 		}
 	}
 

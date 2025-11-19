@@ -3,4 +3,4 @@ set -e
 
 # Dude where's my makefile?
 
-gcc *.c -lpulse -lpulse-simple -lm
+gcc *.c -lpulse -lpulse-simple -lm -lcurses
