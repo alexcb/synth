@@ -22,6 +22,9 @@
 #define RATE 44100
 
 #define NUM_OSCS 10
+#define NUM_OSC_TYPES 2
+
+#define MAX_KEYS 10
 
 #define WAVE_TYPE_NONE 0
 #define WAVE_TYPE_SINE 1
@@ -32,6 +35,19 @@
 #define WAVE_TYPE_PULSE12 6
 #define WAVE_TYPE_PULSE25 7
 #define WAVE_TYPE_RAND 8
+
+#define OSC_TYPE_VFO 1
+#define OSC_TYPE_LFO 2
+
+#define ATTACK_MIN 0.01
+#define DECAY_MIN 0.01
+
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
 
 uint32_t bad_rand_val = 0.f;
 uint32_t bad_rand()
@@ -51,27 +67,54 @@ float bad_normalf()
 	return bad_normal(2000) / 1000.f - 1000.f;
 }
 
+FILE* log_file = NULL;
+void debuglog(const char* s)
+{
+	if (log_file == NULL) {
+		log_file = fopen("/tmp/synth.log", "w");
+		if (log_file == NULL) {
+			fprintf(stderr, "failed to open logfile");
+			assert(log_file);
+		}
+	}
+	fprintf(log_file, "%s", s);
+	fflush(log_file);
+}
+
 struct osc {
 	float freq;
 	float freq_m;
-	bool input;
 	float detune;
+	int osc_type;
 	int wave_type;
 	float phase_input_m;
 	struct osc* phase_input;
 	float amp_input_m;
 	struct osc* amp_input;
-	float output;
 	float output_volume_m;
-	float output_volume; // based on ARSD
-	float output_volume_at_release;
-	float velocity;
-	float pressed_at;
-	float released_at;
 	float attack; // time from 0 to 1
 	float decay; // time from 1 to sustain level
 	float sustain; // level ranging from 0 to 1
 	float release; // time from sustain level to 0
+
+	// internal values
+	// float pressed_at; // TODO remove these
+	// float released_at;
+	// float velocity;
+
+	float output_volume; // set by ARSD envolop calcs
+	float output_volume_at_release;
+	float output;
+};
+
+struct key {
+	float freq;
+	float pressed_at;
+	float released_at;
+	float velocity;
+	struct osc* oscs;
+
+	float future_released_at; // only to be used while using computer keyboard trigger
 };
 
 float ads_level(float t, float attack, float decay, float sustain)
@@ -127,14 +170,33 @@ int parse_wave_type(const char* s)
 	return 0;
 }
 
-int parse_osc(const char* s, int* n)
+int parse_osc(const char* s, int* osc_type, int* n)
 {
-	if (strncmp(s, "osc", 3) != 0) {
+	if (strlen(s) < 4) {
+		return 1;
+	}
+	if (strncmp(s, "vfo", 3) == 0) {
+		*osc_type = OSC_TYPE_VFO;
+	} else if (strncmp(s, "lfo", 3) == 0) {
+		*osc_type = OSC_TYPE_LFO;
+	} else {
 		return 1;
 	}
 	s += 3;
 	*n = atoi(s);
+	if (*n == 0) {
+		return 1;
+	}
 	return 0;
+}
+
+int osc_num_to_index(int osc_num, int osc_type)
+{
+	int i = (osc_num - 1);
+	if (osc_type == OSC_TYPE_LFO) {
+		i += NUM_OSCS;
+	}
+	return i;
 }
 
 int load_patch(const char* path, struct osc* oscs)
@@ -147,10 +209,12 @@ int load_patch(const char* path, struct osc* oscs)
 
 	int n, m;
 
+	int osc_num;
+	int osc_type;
+
 	struct osc* osc = NULL;
 	char buffer[256];
 	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-		int i = 0;
 		n = strlen(buffer);
 		if (buffer[0] == '#') {
 			continue;
@@ -164,12 +228,34 @@ int load_patch(const char* path, struct osc* oscs)
 		if (buffer[0] == '[' && buffer[n - 1] == ']') {
 			buffer[n - 1] = '\0';
 			char* s = &buffer[1];
-			sscanf(s, "osc%d", &i);
-			if (i < 1 || i > NUM_OSCS) {
-				fprintf(stderr, "err: expected osc number in range 1-10, got %d\n", i);
+
+			if (parse_osc(s, &osc_type, &osc_num) != 0) {
+				fprintf(stderr, "err: failed to parse %s\n", s);
 				return 1;
 			}
-			osc = &oscs[i - 1];
+
+			if (osc_num < 1 || osc_num > NUM_OSCS) {
+				fprintf(stderr, "err: expected osc number in range 1-10, got %d\n", osc_num);
+				return 1;
+			}
+			osc = &oscs[osc_num_to_index(osc_num, osc_type)];
+			osc->osc_type = osc_type;
+
+			// init defaults
+			osc->freq_m = 1.0;
+			osc->attack = ATTACK_MIN;
+			osc->sustain = 1.0;
+			osc->decay = DECAY_MIN;
+			osc->phase_input_m = 1.0;
+			osc->amp_input_m = 1.0;
+			if (osc->osc_type == OSC_TYPE_VFO) {
+				osc->freq_m = 1.0;
+				osc->output_volume_m = 1.0;
+				osc->osc_type = WAVE_TYPE_SINE;
+			} else if (osc->osc_type == OSC_TYPE_LFO) {
+				osc->freq = 1.0;
+			}
+
 			continue;
 		}
 		if (osc == NULL) {
@@ -191,21 +277,23 @@ int load_patch(const char* path, struct osc* oscs)
 		} else if (strcmp(buffer, "output") == 0) {
 			osc->output_volume_m = atof(v);
 		} else if (strcmp(buffer, "phase_input") == 0) {
-			if (parse_osc(v, &i) == 0) {
-				osc->phase_input = &oscs[i - 1];
+			if (parse_osc(v, &osc_type, &osc_num) != 0) {
+				return 1;
 			}
+			osc->phase_input = &oscs[osc_num_to_index(osc_num, osc_type)];
 		} else if (strcmp(buffer, "phase_input_m") == 0) {
 			osc->phase_input_m = atof(v);
 		} else if (strcmp(buffer, "amp_input") == 0) {
-			if (parse_osc(v, &i) == 0) {
-				osc->amp_input = &oscs[i - 1];
+			if (parse_osc(v, &osc_type, &osc_num) != 0) {
+				return 1;
 			}
+			osc->amp_input = &oscs[osc_num_to_index(osc_num, osc_type)];
 		} else if (strcmp(buffer, "amp_input_m") == 0) {
 			osc->amp_input_m = atof(v);
 		} else if (strcmp(buffer, "attack") == 0) {
-			osc->attack = atof(v);
+			osc->attack = MAX(atof(v), ATTACK_MIN);
 		} else if (strcmp(buffer, "decay") == 0) {
-			osc->decay = atof(v);
+			osc->decay = MAX(atof(v), DECAY_MIN);
 		} else if (strcmp(buffer, "sustain") == 0) {
 			osc->sustain = atof(v);
 		} else if (strcmp(buffer, "release") == 0) {
@@ -218,7 +306,7 @@ int load_patch(const char* path, struct osc* oscs)
 	fclose(fp);
 }
 
-void osc_set_output(struct osc* osc, float t)
+void osc_set_output(struct key* key, struct osc* osc, float t)
 {
 	if (osc->wave_type == WAVE_TYPE_NONE) {
 		return;
@@ -307,18 +395,13 @@ void osc_set_output(struct osc* osc, float t)
 	}
 
 	// ASDR filtering
-	if (osc->pressed_at > osc->released_at) {
-		float time_since_press = t - osc->pressed_at;
+	if (key->pressed_at > key->released_at) {
+		float time_since_press = t - key->pressed_at;
 		osc->output_volume = ads_level(time_since_press, osc->attack, osc->decay, osc->sustain);
 		osc->output_volume_at_release = osc->output_volume;
-	} else if (osc->released_at > osc->pressed_at) {
-		float time_since_release = t - osc->released_at;
+	} else if (key->released_at > key->pressed_at) {
+		float time_since_release = t - key->released_at;
 		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->decay);
-		if (osc->output_volume <= 0.f) {
-			// we're done
-			osc->pressed_at = 0.f;
-			osc->released_at = 0.f;
-		}
 	}
 }
 
@@ -350,6 +433,29 @@ float get_freq(const char c)
 	}
 }
 
+void get_key(struct key* keys, float freq, struct key** key)
+{
+	for (int i = 0; i < MAX_KEYS; i++) {
+		if (keys[i].freq == freq) {
+			*key = &keys[i];
+			return;
+		}
+	}
+	float oldest_pressed = 0.0;
+	int oldest_i = 0;
+	for (int i = 0; i < MAX_KEYS; i++) {
+		if (keys[i].pressed_at == 0.0 && keys[i].released_at == 0.0) {
+			*key = &keys[i];
+			return;
+		}
+		if (keys[i].pressed_at > 0.0 && (oldest_pressed == 0 || keys[i].pressed_at < oldest_pressed)) {
+			oldest_pressed = keys[i].pressed_at;
+			oldest_i = i;
+		}
+	}
+	*key = &keys[oldest_i];
+}
+
 int main(int argc, char** argv, char** env)
 {
 
@@ -368,14 +474,6 @@ int main(int argc, char** argv, char** env)
 		assert(0);
 	}
 
-	if (interactive) {
-		initscr();
-		cbreak();
-		noecho();
-		keypad(stdscr, TRUE);
-		nodelay(stdscr, TRUE);
-	}
-
 	// size_t buf_seconds = 60;
 
 	size_t chunk = 100;
@@ -386,56 +484,81 @@ int main(int argc, char** argv, char** env)
 	char* buf = malloc(sizeof(int16_t) * buf_num_samples);
 	memset(buf, 0, sizeof(int16_t) * buf_num_samples);
 
-	size_t n = sizeof(struct osc) * NUM_OSCS;
-	struct osc* oscs = malloc(n);
-	memset(oscs, 0, n);
+	size_t key_bytes = sizeof(struct key) * MAX_KEYS;
+	size_t osc_bytes = sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES;
+	struct key* keys = malloc(key_bytes);
+	memset(keys, 0, key_bytes);
+	for (size_t i = 0; i < MAX_KEYS; i++) {
+		keys[i].oscs = malloc(osc_bytes);
+	}
 
-	load_patch("patch", oscs);
-	for (int i = 0; i < NUM_OSCS; i++) {
-		if (oscs[i].freq == 0) {
-			oscs[i].input = true;
-		}
-		if (oscs[i].freq_m == 0) {
-			oscs[i].freq_m = 1.0;
-		}
+	memset(keys[0].oscs, 0, osc_bytes);
+	if (load_patch("patch", keys[0].oscs) != 0) {
+		goto shutdown;
+	}
+	for (size_t i = 1; i < MAX_KEYS; i++) {
+		memcpy(keys[i].oscs, keys[0].oscs, osc_bytes);
+	}
+
+	if (interactive) {
+		initscr();
+		cbreak();
+		noecho();
+		keypad(stdscr, TRUE);
+		nodelay(stdscr, TRUE);
 	}
 
 	float t = 0.f;
-	float release_at = 0.f;
 	for (;;) {
 
 		for (uint32_t i = 0; i < buf_num_samples; i++) {
 			t += 1.f / RATE;
 
-			float freq = get_freq(getch());
+			char ch = getch();
+			if (ch == 'q') {
+				goto shutdown;
+			}
+			float freq = get_freq(ch);
 			if (freq > 0.f) {
+				struct key* k;
+				get_key(keys, freq, &k);
 				// simulate a key press
 				// printf("pressed at %f\n", t);
-				release_at = t + 0.5; // hold for 1/10 of a second
+				k->future_released_at = t + 2.5; // hold for some extra time (only while using computer keyboard)
+
+				k->freq = freq;
+				k->velocity = 1.0f;
+				k->pressed_at = t;
+				k->released_at = 0.0f;
 				for (int i = 0; i < NUM_OSCS; i++) {
-					if (oscs[i].input == true) {
-						oscs[i].freq = freq;
-						oscs[i].velocity = 1.0f;
-						oscs[i].pressed_at = t;
-						oscs[i].released_at = 0.0f;
-					}
+					k->oscs[osc_num_to_index(i, OSC_TYPE_VFO)].freq = freq;
 				}
 			}
-			if (release_at != 0.f && release_at < t) {
-				release_at = 0.f;
-				// approx 5 seconds after
-				// printf("released at %f\n", t);
-				for (int i = 0; i < NUM_OSCS; i++) {
-					if (oscs[i].pressed_at > 0.f) {
-						oscs[i].released_at = t;
-					}
+
+			for (int i = 0; i < MAX_KEYS; i++) {
+				if (keys[i].future_released_at != 0.f && keys[i].future_released_at < t) {
+					keys[i].future_released_at = 0.f;
+					keys[i].released_at = t;
 				}
 			}
 
 			float output = 0.0f;
-			for (int i = 0; i < NUM_OSCS; i++) {
-				osc_set_output(&oscs[i], t);
-				output += oscs[i].output * oscs[i].output_volume * oscs[i].output_volume_m;
+			for (int i = 0; i < MAX_KEYS; i++) {
+				bool done = true;
+				for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
+					struct osc* osc = &keys[i].oscs[j];
+					osc_set_output(&keys[i], osc, t);
+					if (osc->osc_type == OSC_TYPE_VFO) {
+						output += osc->output * osc->output_volume * osc->output_volume_m;
+						if (osc->output_volume > 0.0 || keys[i].released_at == 0.0) {
+							done = false;
+						}
+					}
+				}
+				if (done) {
+					keys[i].pressed_at = 0.f;
+					keys[i].released_at = 0.f;
+				}
 			}
 
 			if (output > 1.0f) {
@@ -458,6 +581,12 @@ int main(int argc, char** argv, char** env)
 			}
 		}
 	}
+shutdown:
+	if (interactive) {
+		endwin();
+	}
+
+error:
 
 	free(buf);
 

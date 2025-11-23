@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 set -e
 
+echo this broke, since it needs ./a.out in the foreground
+exit 1
+
 function restart {
 	if [ -n "$PID" ]; then
 		echo "killing $PID"
@@ -9,6 +12,14 @@ function restart {
 	./a.out &
 	PID=$!
 	echo "started $PID"
+}
+
+function loop {
+	while true; do
+		inotifywait -e close_write patch || true;
+		echo needs restart;
+		echo d;
+	done
 }
 
 function cleanup() {
@@ -21,5 +32,14 @@ function cleanup() {
 }
 trap cleanup SIGINT
 
-restart
-while true; do inotifywait -e close_write patch || true; restart; echo d; done
+loop &
+
+while true; do
+	( echo $BASHPID; kill -SIGSTOP $BASHPID; echo start ) &
+	PID=$!
+	echo "PID is $PID"
+	jobs
+	fg %2
+	sleep 2
+done
+
