@@ -1,3 +1,19 @@
+// Copyright (C) 2017-2023  R. Stange <rsta2@o2online.de>
+// Copyright (C) 2025  Alex Couture-Beil <alex@mofo.ca>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -274,6 +290,8 @@ int load_patch(const char* path, struct osc* oscs)
 			osc->freq = atof(v);
 		} else if (strcmp(buffer, "freq_m") == 0) {
 			osc->freq_m = atof(v);
+		} else if (strcmp(buffer, "detune") == 0) {
+			osc->detune = atof(v);
 		} else if (strcmp(buffer, "output") == 0) {
 			osc->output_volume_m = atof(v);
 		} else if (strcmp(buffer, "phase_input") == 0) {
