@@ -49,3 +49,12 @@ adjust the amplitude (volume) using a different oscillator:
     amp_input=lfo1, lfo2, ..., or lfo10
     amp_input_m=<float>, which multiplies the input oscillator level
 
+
+# Circle notes
+
+    echo UFJFRklYID0gYWFyY2g2NC1ub25lLWVsZi0KQUFSQ0ggPSA2NApSQVNQUEkgPSAzCkRFRklORSArPSAtRFNBVkVfVkZQX1JFR1NfT05fSVJRCkRFRklORSArPSAtREFSTV9BTExPV19NVUxUSV9DT1JFCkRFRklORSArPSAtRFJFQUxUSU1FCkRFRklORSArPSAtRFVTRV9QV01fQVVESU9fT05fWkVSTwpTRVJJQUxQT1JUID0gL2Rldi90dHlVU0IwCkZMQVNIQkFVRCA9IDExNTIwMApVU0VSQkFVRCA9IDExNTIwMAo | base64 -d > circle/Config.mk
+    
+    export PATH="/home/alex/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-elf/bin:$PATH"
+    ./make.circle
+    cd circle-app
+    make flash
