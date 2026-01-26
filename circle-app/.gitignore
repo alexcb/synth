@@ -1,0 +1,7 @@
+*.d
+*.o
+kernel8.elf
+kernel8.hex
+kernel8.img
+kernel8.lst
+kernel8.map

@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+
+# Dude where's my makefile?
+
+# -q
+gcc -O3 linux/*.c common/*.c -lpulse -lpulse-simple -lm -lcurses

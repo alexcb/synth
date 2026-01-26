@@ -3,4 +3,8 @@ set -e
 
 # Dude where's my makefile?
 
-find -regex '.*\.\(c\|h\)$' -exec clang-format -i {} \;
+for p in common linux circle-app; do
+	cd "$p"
+	find -regex '.*\.\(c\|h\)$' -exec clang-format -i {} \;
+	cd ..
+done

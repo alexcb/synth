@@ -21,85 +21,85 @@
 #define _miniorgan_h
 
 // define only one
-//#define USE_I2S
-//#define USE_HDMI
-//#define USE_USB
+// #define USE_I2S
+// #define USE_HDMI
+// #define USE_USB
 
 #ifdef USE_I2S
-	#include <circle/sound/i2ssoundbasedevice.h>
-	#define SOUND_CLASS	CI2SSoundBaseDevice
-	#define SAMPLE_RATE	48000
-	#define CHUNK_SIZE	2048
-	#define DAC_I2C_ADDRESS	0		// I2C slave address of the DAC (0 for auto probing)
-#elif defined (USE_HDMI)
-	#include <circle/sound/hdmisoundbasedevice.h>
-	#define SOUND_CLASS	CHDMISoundBaseDevice
-	#define SAMPLE_RATE	48000
-	#define CHUNK_SIZE	(384 * 10)
-#elif defined (USE_USB)
-	#include <circle/sound/usbsoundbasedevice.h>
-	#define SOUND_CLASS	CUSBSoundBaseDevice
-	#define SAMPLE_RATE	48000
+#include <circle/sound/i2ssoundbasedevice.h>
+#define SOUND_CLASS CI2SSoundBaseDevice
+#define SAMPLE_RATE 48000
+#define CHUNK_SIZE 2048
+#define DAC_I2C_ADDRESS 0 // I2C slave address of the DAC (0 for auto probing)
+#elif defined(USE_HDMI)
+#include <circle/sound/hdmisoundbasedevice.h>
+#define SOUND_CLASS CHDMISoundBaseDevice
+#define SAMPLE_RATE 48000
+#define CHUNK_SIZE (384 * 10)
+#elif defined(USE_USB)
+#include <circle/sound/usbsoundbasedevice.h>
+#define SOUND_CLASS CUSBSoundBaseDevice
+#define SAMPLE_RATE 48000
 #else
-	#include <circle/sound/pwmsoundbasedevice.h>
-	#define SOUND_CLASS	CPWMSoundBaseDevice
-	#define SAMPLE_RATE	48000
-	#define CHUNK_SIZE	2048
+#include <circle/sound/pwmsoundbasedevice.h>
+#define SOUND_CLASS CPWMSoundBaseDevice
+#define SAMPLE_RATE 48000
+#define CHUNK_SIZE 2048
 #endif
 
-#include <circle/interrupt.h>
 #include <circle/i2cmaster.h>
-#include <circle/usb/usbmidi.h>
-#include <circle/usb/usbkeyboard.h>
+#include <circle/interrupt.h>
 #include <circle/serial.h>
 #include <circle/types.h>
+#include <circle/usb/usbkeyboard.h>
+#include <circle/usb/usbmidi.h>
 
 #define MAX_NOTES 10
 
-struct TNoteInfo
-{
-	char	Key;
-	u8	KeyNumber;	// MIDI number
+struct TNoteInfo {
+	char Key;
+	u8 KeyNumber; // MIDI number
 };
 
-class CMiniOrgan : public SOUND_CLASS
-{
-public:
-	CMiniOrgan (CInterruptSystem *pInterrupt, CI2CMaster *pI2CMaster);
-	~CMiniOrgan (void);
+struct key;
 
-	boolean Initialize (void);
+class CMiniOrgan : public SOUND_CLASS {
+    public:
+	CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster);
+	~CMiniOrgan(void);
 
-	void Process (boolean bPlugAndPlayUpdated);
+	boolean Initialize(void);
+
+	void Process(boolean bPlugAndPlayUpdated);
 
 #ifdef USE_USB
-	unsigned GetChunk (s16 *pBuffer, unsigned nChunkSize);
+	unsigned GetChunk(s16* pBuffer, unsigned nChunkSize);
 #endif
-	unsigned GetChunk (u32 *pBuffer, unsigned nChunkSize);
+	unsigned GetChunk(u32* pBuffer, unsigned nChunkSize);
 
-private:
-	static void MIDIPacketHandler (unsigned nCable, u8 *pPacket, unsigned nLength);
+    private:
+	static void MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLength);
 
-	static void KeyStatusHandlerRaw (unsigned char ucModifiers, const unsigned char RawKeys[6]);
+	static void KeyStatusHandlerRaw(unsigned char ucModifiers, const unsigned char RawKeys[6]);
 
-	static void USBDeviceRemovedHandler (CDevice *pDevice, void *pContext);
+	static void USBDeviceRemovedHandler(CDevice* pDevice, void* pContext);
 
-private:
-	CUSBMIDIDevice     * volatile m_pMIDIDevice;
-	CUSBKeyboardDevice * volatile m_pKeyboard;
+    private:
+	CUSBMIDIDevice* volatile m_pMIDIDevice;
+	CUSBKeyboardDevice* volatile m_pKeyboard;
 
 	CSerialDevice m_Serial;
 	boolean m_bUseSerial;
 	unsigned m_nSerialState;
 	u8 m_SerialMessage[3];
 
-	int      m_nLowLevel;
-	int      m_nNullLevel;
-	int      m_nDiffLevel;
-	int      m_nHighLevel;
-	int      m_nCurrentLevel;
-	unsigned m_nSampleCount;
-	//unsigned m_nFrequency[MAX_NOTES];
+	int m_nLowLevel;
+	int m_nNullLevel;
+	int m_nDiffLevel;
+	int m_nHighLevel;
+	int m_nCurrentLevel;
+	unsigned long m_nSampleCount;
+	// unsigned m_nFrequency[MAX_NOTES];
 	unsigned m_nPrevFrequency;
 	unsigned m_nPitchBend;
 
@@ -113,10 +113,13 @@ private:
 
 	unsigned m_nRandSeed;
 
+	struct key* keys;
+	// unsigned tt; // TODO can I use uint32_t instead?
+
 	static const float s_KeyFrequency[];
 	static const TNoteInfo s_Keys[];
 
-	static CMiniOrgan *s_pThis;
+	static CMiniOrgan* s_pThis;
 };
 
 #endif

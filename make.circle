@@ -1,0 +1,30 @@
+#!/bin/bash
+
+cd circle
+./makeall --nosample $1 $2 || exit
+
+cd addon
+
+cd SDCard
+make $1 $2 || exit
+cd ..
+
+cd fatfs
+make $1 $2 || exit
+cd ..
+
+cd Properties
+make $1 $2 || exit
+cd ..
+
+#cd lvgl
+#make $1 $2 || exit
+#cd ..
+
+cd ..
+
+cd ..
+
+cd circle-app
+make $1 $2 || exit
+cd ..
