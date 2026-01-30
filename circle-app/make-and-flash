@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+sh -c 'cd ..; ./encode-patch.py > patch_contents.h'
+cd ../common
+make clean
+make
+cd -
+make -f make.dontusedirectly clean
+make -f make.dontusedirectly flash

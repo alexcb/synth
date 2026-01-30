@@ -72,7 +72,7 @@ int parse_osc(const char* s, int* osc_type, int* n)
 	}
 	s += 3;
 	*n = atoi(s);
-	if (*n == 0) {
+	if (*n == 0 || *n > NUM_OSCS) {
 		return 1;
 	}
 	return 0;
@@ -98,11 +98,18 @@ float r_level(float t, float orig_vol, float release)
 	return orig_vol * (1.0 - t / release);
 }
 
+// osc_num is from 1 to NUM_OSCS (not 0-indexed)
 int osc_num_to_index(int osc_num, int osc_type)
 {
+	if (osc_num < 1 || osc_num > NUM_OSCS) {
+		assert(0);
+	}
 	int i = (osc_num - 1);
 	if (osc_type == OSC_TYPE_LFO) {
 		i += NUM_OSCS;
+	}
+	if (i >= NUM_OSCS * NUM_OSC_TYPES) {
+		assert(0);
 	}
 	return i;
 }
@@ -201,14 +208,22 @@ int load_patch(char* src, struct osc* oscs)
 			if (parse_osc(v, &osc_type, &osc_num) != 0) {
 				return 1;
 			}
-			osc->phase_input = &oscs[osc_num_to_index(osc_num, osc_type)];
+			int osc_i = osc_num_to_index(osc_num, osc_type);
+			if (osc_i < 0) {
+				return 1;
+			}
+			osc->phase_input = &oscs[osc_i];
 		} else if (strcmp(buffer, "phase_input_m") == 0) {
 			osc->phase_input_m = atof(v);
 		} else if (strcmp(buffer, "amp_input") == 0) {
 			if (parse_osc(v, &osc_type, &osc_num) != 0) {
 				return 1;
 			}
-			osc->amp_input = &oscs[osc_num_to_index(osc_num, osc_type)];
+			int osc_i = osc_num_to_index(osc_num, osc_type);
+			if (osc_i < 0) {
+				return 1;
+			}
+			osc->amp_input = &oscs[osc_i];
 		} else if (strcmp(buffer, "amp_input_m") == 0) {
 			osc->amp_input_m = atof(v);
 		} else if (strcmp(buffer, "attack") == 0) {
@@ -344,11 +359,11 @@ void get_key(struct key* keys, float freq, struct key** key, bool insert)
 	float oldest_pressed = 0.0;
 	int oldest_i = 0;
 	for (int i = 0; i < MAX_KEYS; i++) {
-		if (keys[i].pressed_at == 0.0 && keys[i].released_at == 0.0) {
+		if (keys[i].freq == 0.0) {
 			*key = &keys[i];
 			return;
 		}
-		if (keys[i].pressed_at > 0.0 && (oldest_pressed == 0 || keys[i].pressed_at < oldest_pressed)) {
+		if (keys[i].pressed_at > 0.0 && (oldest_pressed == 0.0 || keys[i].pressed_at < oldest_pressed)) {
 			oldest_pressed = keys[i].pressed_at;
 			oldest_i = i;
 		}

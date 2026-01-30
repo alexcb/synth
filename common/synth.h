@@ -81,6 +81,9 @@ int load_patch(char* path, struct osc* oscs);
 void osc_set_output(struct key* key, struct osc* osc, float t);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
+// TODO remove this
+int osc_num_to_index(int osc_num, int osc_type);
+
 #ifdef __cplusplus
 }
 #endif
