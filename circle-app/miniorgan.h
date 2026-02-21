@@ -20,18 +20,39 @@
 #ifndef _miniorgan_h
 #define _miniorgan_h
 
+// define only one
+// #define USE_I2S
+// #define USE_HDMI
+// #define USE_USB
+
+#ifdef USE_I2S
+#include <circle/sound/i2ssoundbasedevice.h>
+#define SOUND_CLASS CI2SSoundBaseDevice
+#define SAMPLE_RATE 48000
+#define CHUNK_SIZE 2048
+#define DAC_I2C_ADDRESS 0 // I2C slave address of the DAC (0 for auto probing)
+#elif defined(USE_HDMI)
+#include <circle/sound/hdmisoundbasedevice.h>
+#define SOUND_CLASS CHDMISoundBaseDevice
+#define SAMPLE_RATE 48000
+#define CHUNK_SIZE (384 * 10)
+#elif defined(USE_USB)
+#include <circle/sound/usbsoundbasedevice.h>
+#define SOUND_CLASS CUSBSoundBaseDevice
+#define SAMPLE_RATE 48000
+#else
 #include <circle/sound/pwmsoundbasedevice.h>
 #define SOUND_CLASS CPWMSoundBaseDevice
 #define SAMPLE_RATE 48000
 #define CHUNK_SIZE 2048
+#endif
 
 #include <circle/i2cmaster.h>
 #include <circle/interrupt.h>
 #include <circle/serial.h>
 #include <circle/types.h>
+#include <circle/usb/usbkeyboard.h>
 #include <circle/usb/usbmidi.h>
-
-#include "voicemanager.h"
 
 #define MAX_NOTES 10
 
@@ -49,9 +70,11 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	boolean Initialize(void);
 
-	void Run(unsigned nCore);
 	void Process(boolean bPlugAndPlayUpdated);
 
+#ifdef USE_USB
+	unsigned GetChunk(s16* pBuffer, unsigned nChunkSize);
+#endif
 	unsigned GetChunk(u32* pBuffer, unsigned nChunkSize);
 
     private:
@@ -61,12 +84,14 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	static void USBDeviceRemovedHandler(CDevice* pDevice, void* pContext);
 
-	VoiceManager voice_manager;
-
-	void FillChunkBuff();
-
     private:
 	CUSBMIDIDevice* volatile m_pMIDIDevice;
+	CUSBKeyboardDevice* volatile m_pKeyboard;
+
+	CSerialDevice m_Serial;
+	boolean m_bUseSerial;
+	unsigned m_nSerialState;
+	u8 m_SerialMessage[3];
 
 	int m_nLowLevel;
 	int m_nNullLevel;
@@ -78,10 +103,6 @@ class CMiniOrgan : public SOUND_CLASS {
 	unsigned m_nPrevFrequency;
 	unsigned m_nPitchBend;
 
-	u16 chunkBuffReadIndex;
-	u16 chunkBuffReadAvail;
-	u32* chunkBuff;
-
 	u8 m_ucKeyNumber[MAX_NOTES];
 
 	boolean m_bSetVolume;
@@ -89,8 +110,6 @@ class CMiniOrgan : public SOUND_CLASS {
 	u8 m_modulation;
 	u8 m_noise;
 	u8 m_detune;
-
-	volatile u8 islockingneeded;
 
 	unsigned m_nRandSeed;
 
