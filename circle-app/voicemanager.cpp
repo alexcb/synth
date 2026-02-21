@@ -23,7 +23,6 @@
 #error "ARM_ALLOW_MULTI_CORE was not defined; should be under circle/Config.mk"
 #endif
 
-
 #include "voicemanager.h"
 #include <assert.h>
 #include <circle/devicenameservice.h>
@@ -105,7 +104,7 @@ void VoiceManager::Run(unsigned nCore)
 	// CLogger::Get()->Write("VOICEMAN", LogNotice, "core %u called", nCore);
 }
 
-//float VoiceManager::Process()
+// float VoiceManager::Process()
 //{
 //		float output = 0.0f;
 //		for (int i = 0; i < MAX_KEYS; i++) {
@@ -127,14 +126,14 @@ void VoiceManager::Run(unsigned nCore)
 //				k->freq = 0.f;
 //			}
 //		}
-//}
+// }
 
 void VoiceManager::produce_keys(unsigned nCore)
 {
 	float t = this->t;
 	float output = 0.0f;
 	const int start = nCore * (MAX_KEYS / CORES);
-	const int end = (nCore+1) * (MAX_KEYS / CORES);
+	const int end = (nCore + 1) * (MAX_KEYS / CORES);
 	for (int i = start; i < end; i++) {
 		struct key* k = &keys[i];
 		bool done = true;
@@ -142,9 +141,9 @@ void VoiceManager::produce_keys(unsigned nCore)
 			struct osc* osc = &k->oscs[j];
 			osc_set_output(k, osc, t);
 			if (osc->osc_type == OSC_TYPE_VFO) {
-				//if( osc->output > 0.0f ) {
+				// if( osc->output > 0.0f ) {
 				//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);
-				//}
+				// }
 				output += osc->output * osc->output_volume * osc->output_volume_m;
 				if (osc->output_volume > 0.0 || k->released_at == 0.0) {
 					done = false;
@@ -152,7 +151,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 			}
 		}
 		if (done) {
-			if( k->pressed_at > 0.f ) {
+			if (k->pressed_at > 0.f) {
 				CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u is done", t, nCore, k->freq, i);
 			}
 			k->pressed_at = 0.f;
@@ -160,7 +159,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 			k->freq = 0.f;
 		}
 	}
-	if( output > 0.f ) {
+	if (output > 0.f) {
 		CLogger::Get()->Write("VOICEMAN", LogNotice, "called at time %f, core %u output is %f, range %d-%d", t, nCore, output, start, end);
 	}
 	m_fOutputLevel[nCore] = output;
@@ -168,18 +167,17 @@ void VoiceManager::produce_keys(unsigned nCore)
 
 float VoiceManager::GetOutput(float t)
 {
-	//CLogger::Get()->Write("VOICEMAN", LogNotice, "called at time %f", t);
+	// CLogger::Get()->Write("VOICEMAN", LogNotice, "called at time %f", t);
 	this->t = t;
-	//set_cores_busy();
-	//produce_keys(0);
-	//wait_for_idle_cores();
+	// set_cores_busy();
+	// produce_keys(0);
+	// wait_for_idle_cores();
 
 	produce_keys(0);
 
 	float output = m_fOutputLevel[0];
-	//for (unsigned nCore = 1; nCore < CORES; nCore++) {
+	// for (unsigned nCore = 1; nCore < CORES; nCore++) {
 	//	output += m_fOutputLevel[nCore];
-	//}
+	// }
 	return output;
-	
 }

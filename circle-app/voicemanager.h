@@ -47,7 +47,7 @@ class VoiceManager : public CMultiCoreSupport {
 	void Run(unsigned nCore);
 	float GetOutput(float t);
 
-	protected:
+    protected:
 	struct key* keys;
 	void produce_keys(unsigned nCore);
 	void wait_for_idle_cores();

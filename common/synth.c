@@ -244,7 +244,7 @@ int load_patch(char* src, struct osc* oscs)
 void osc_set_output(struct key* key, struct osc* osc, float t)
 {
 	if (osc->wave_type == WAVE_TYPE_NONE) {
-		assert( osc->output == 0.0f );
+		assert(osc->output == 0.0f);
 		return;
 	}
 

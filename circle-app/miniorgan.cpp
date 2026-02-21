@@ -94,7 +94,6 @@ CMiniOrgan* CMiniOrgan::s_pThis = 0;
 
 #define CHUNK_BUF_NUM_ELEM 1024 * 2
 
-
 // Note that compare and swap locking isn't working, so it's not possbile to do this:
 // volatile int chunk_buff_lock = 0;
 // which could be locked/unlocked via code similar to:
@@ -294,7 +293,6 @@ void CMiniOrgan::FillChunkBuff()
 		// new broken way
 		// float output = voice_manager.GetOutput(t);
 
-
 		// old (working way)
 		float output = 0.0f;
 		for (int i = 0; i < MAX_KEYS; i++) {
@@ -316,7 +314,6 @@ void CMiniOrgan::FillChunkBuff()
 				k->freq = 0.f;
 			}
 		}
-
 
 		if (output > 1.0f) {
 			output = 1.0f;
