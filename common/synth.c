@@ -122,7 +122,7 @@ int load_patch(char* src, struct osc* oscs)
 	//	return 1;
 	// }
 
-	int n, m;
+	int n;
 
 	int osc_num;
 	int osc_type;
@@ -187,7 +187,6 @@ int load_patch(char* src, struct osc* oscs)
 		if (v == NULL) {
 			continue;
 		}
-		m = v - buffer - 1;
 		*v = '\0';
 		v++;
 		if (strcmp(buffer, "type") == 0) {
@@ -245,16 +244,19 @@ int load_patch(char* src, struct osc* oscs)
 void osc_set_output(struct key* key, struct osc* osc, float t)
 {
 	if (osc->wave_type == WAVE_TYPE_NONE) {
+		assert( osc->output == 0.0f );
 		return;
 	}
 
 	float freq = osc->freq * osc->freq_m;
+	if (freq <= 0.0) {
+		osc->output = 0.0f;
+		return;
+	}
+
 	freq = exp2f(log2f(freq) + osc->detune);
 	if (osc->phase_input && osc->phase_input->wave_type) {
 		freq += osc->phase_input->output * osc->phase_input_m;
-	}
-	if (freq < 0.0) {
-		return;
 	}
 
 	float period = 1.0 / freq;

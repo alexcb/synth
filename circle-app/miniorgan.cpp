@@ -17,33 +17,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-#include "miniorgan.h"
-#include <circle/devicenameservice.h>
-#include <circle/sysconfig.h>
-#include <circle/logger.h>
-#include <circle/util.h>
-#include <assert.h>
+//
 
+#include "miniorgan.h"
+#include <assert.h>
+#include <circle/devicenameservice.h>
+#include <circle/logger.h>
+#include <circle/sysconfig.h>
+#include <circle/util.h>
+
+#include <circle/atomic.h>
 #include <circle/string.h>
 
 #include "../common/synth.h"
 #include "patch_contents.h"
+#include "voicemanager.h"
 
-#define VOLUME_PERCENT	20
+#define VOLUME_PERCENT 20
 
-#define MIDI_NOTE_OFF	0b1000
-#define MIDI_NOTE_ON	0b1001
-#define MIDI_CC		0b1011
+#define MIDI_NOTE_OFF 0b1000
+#define MIDI_NOTE_ON 0b1001
+#define MIDI_CC 0b1011
 
-#define MIDI_CC_VOLUME	7
+#define MIDI_CC_VOLUME 7
 
-#define KEY_NONE	255
+#define KEY_NONE 255
 
 static const char FromMiniOrgan[] = "organ";
 
 // See: http://www.deimos.ca/notefreqs/
-const float CMiniOrgan::s_KeyFrequency[/* MIDI key number */] =
-{
+const float CMiniOrgan::s_KeyFrequency[/* MIDI key number */] = {
 	8.17580, 8.66196, 9.17702, 9.72272, 10.3009, 10.9134, 11.5623, 12.2499, 12.9783, 13.7500,
 	14.5676, 15.4339, 16.3516, 17.3239, 18.3540, 19.4454, 20.6017, 21.8268, 23.1247, 24.4997,
 	25.9565, 27.5000, 29.1352, 30.8677, 32.7032, 34.6478, 36.7081, 38.8909, 41.2034, 43.6535,
@@ -59,78 +62,85 @@ const float CMiniOrgan::s_KeyFrequency[/* MIDI key number */] =
 	8372.02, 8869.84, 9397.27, 9956.06, 10548.1, 11175.3, 11839.8, 12543.9
 };
 
-const TNoteInfo CMiniOrgan::s_Keys[] =
-{
-	{',', 72}, // C4
-	{'M', 71}, // B4
-	{'J', 70}, // A#4
-	{'N', 69}, // A4
-	{'H', 68}, // G#3
-	{'B', 67}, // G3
-	{'G', 66}, // F#3
-	{'V', 65}, // F3
-	{'C', 64}, // E3
-	{'D', 63}, // D#3
-	{'X', 62}, // D3
-	{'S', 61}, // C#3
-	{'Z', 60}  // C3
+const TNoteInfo CMiniOrgan::s_Keys[] = {
+	{ ',', 72 }, // C4
+	{ 'M', 71 }, // B4
+	{ 'J', 70 }, // A#4
+	{ 'N', 69 }, // A4
+	{ 'H', 68 }, // G#3
+	{ 'B', 67 }, // G3
+	{ 'G', 66 }, // F#3
+	{ 'V', 65 }, // F3
+	{ 'C', 64 }, // E3
+	{ 'D', 63 }, // D#3
+	{ 'X', 62 }, // D3
+	{ 'S', 61 }, // C#3
+	{ 'Z', 60 } // C3
 };
 
 #define RAND_MAX 32767
 
-static inline int rand_r (unsigned *pSeed)
+static inline int rand_r(unsigned* pSeed)
 {
 	*pSeed = *pSeed * 1103515245 + 12345;
 
-	return (unsigned) (*pSeed / 65536) % 32768;
+	return (unsigned)(*pSeed / 65536) % 32768;
 }
 
 CString hackmsg;
-//char hackmsg[1024];
+// char hackmsg[1024];
 
-CMiniOrgan *CMiniOrgan::s_pThis = 0;
+CMiniOrgan* CMiniOrgan::s_pThis = 0;
 
-CMiniOrgan::CMiniOrgan (CInterruptSystem *pInterrupt, CI2CMaster *pI2CMaster)
-#ifdef USE_USB
-:	SOUND_CLASS (SAMPLE_RATE
-#else
-:	SOUND_CLASS (pInterrupt, SAMPLE_RATE, CHUNK_SIZE
-#ifdef USE_I2S
-		     , FALSE, pI2CMaster, DAC_I2C_ADDRESS
-#endif
-#endif
-	),
-	m_pMIDIDevice (0),
-	m_pKeyboard (0),
-#if RASPPI <= 3 && defined (USE_USB_FIQ)
-	m_Serial (pInterrupt, FALSE),
-#else
-	m_Serial (pInterrupt, TRUE),
-#endif
-	m_bUseSerial (FALSE),
-	m_nSerialState (0),
-	m_nSampleCount (0),
-	m_nPrevFrequency (0),
-	//m_ucKeyNumber (KEY_NONE),
-	m_bSetVolume (FALSE),
-	m_nPitchBend(0),
-	m_uchVolume(127),
-	m_modulation(0),
-	m_noise(0),
-	m_detune(0)
+#define CHUNK_BUF_NUM_ELEM 1024 * 2
+
+
+// Note that compare and swap locking isn't working, so it's not possbile to do this:
+// volatile int chunk_buff_lock = 0;
+// which could be locked/unlocked via code similar to:
+//   while( AtomicCompareExchange(&chunk_buff_lock, 0, 1) == 0 );
+
+// instead we just mark it as volatile and only change these when using cpu core 0
+volatile int chunk_ready = 0;
+volatile int num_underruns = 0;
+
+CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
+    : SOUND_CLASS(pInterrupt, SAMPLE_RATE, CHUNK_SIZE)
+    , voice_manager(CMemorySystem::Get())
+    , m_pMIDIDevice(0)
+
+    , m_nLowLevel(0)
+    , m_nNullLevel(0)
+    , m_nDiffLevel(0)
+    , m_nHighLevel(0)
+    , m_nCurrentLevel(0)
+    , m_nSampleCount(0)
+    , m_nPrevFrequency(0)
+    , m_nPitchBend(0)
+
+    , chunkBuffReadIndex(0)
+    , chunkBuffReadAvail(0)
+    , chunkBuff(0)
+
+    , m_bSetVolume(0)
+    , m_uchVolume(0)
+    , m_modulation(0)
+    , m_noise(0)
+    , m_detune(0)
+    , islockingneeded(0)
 {
 	s_pThis = this;
 
-	m_nLowLevel     = GetRangeMin () * VOLUME_PERCENT / 100;
-	m_nHighLevel    = GetRangeMax () * VOLUME_PERCENT / 100;
-	m_nNullLevel    = (m_nHighLevel + m_nLowLevel) / 2;
-	m_nDiffLevel    = (m_nHighLevel - m_nLowLevel) / 2;
+	m_nLowLevel = GetRangeMin() * VOLUME_PERCENT / 100;
+	m_nHighLevel = GetRangeMax() * VOLUME_PERCENT / 100;
+	m_nNullLevel = (m_nHighLevel + m_nLowLevel) / 2;
+	m_nDiffLevel = (m_nHighLevel - m_nLowLevel) / 2;
 	m_nCurrentLevel = m_nNullLevel;
 
 	memset(m_ucKeyNumber, 0, sizeof m_ucKeyNumber);
 	CString tmp;
 
-	//hackmsg[0] = '\0';
+	chunkBuff = static_cast<u32*>(::operator new(CHUNK_BUF_NUM_ELEM * 4));
 
 	// TODO move this into common
 	size_t key_bytes = sizeof(struct key) * MAX_KEYS;
@@ -143,314 +153,170 @@ CMiniOrgan::CMiniOrgan (CInterruptSystem *pInterrupt, CI2CMaster *pI2CMaster)
 	}
 
 	int n = strlen(patch_contents);
-	char *patch_contents_copy = static_cast<char*>(::operator new(n+1));
-
+	char* patch_contents_copy = static_cast<char*>(::operator new(n + 1));
 
 	for (size_t i = 0; i < MAX_KEYS; i++) {
-		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq); hackmsg.Append(tmp);
+		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
+		hackmsg.Append(tmp);
 		strcpy(patch_contents_copy, patch_contents);
 		if (load_patch(patch_contents_copy, keys[i].oscs) != 0) {
-			tmp.Format("loading patch for key %p failed;", &keys[i]); hackmsg.Append(tmp);
-		}
-	}
-	
-	int osc_i = osc_num_to_index(1, OSC_TYPE_LFO);
-
-	//hackmsg.Format("sizeof(struct osc)=%d; numkeys=%d; osc_i=%d; NUM_OSCS=%d; ", sizeof(struct osc), MAX_KEYS, osc_i, NUM_OSCS); // 96 bytes
-	for (int i = 0; i < MAX_KEYS; i++) {
-		for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
-			struct osc* osc = &keys[i].oscs[j];
-			if (osc->osc_type == OSC_TYPE_VFO) {
-				tmp.Format("%d,%d is VFO type; ", i, j);
-				hackmsg.Append(tmp);
-			}
+			tmp.Format("loading patch for key %p failed;", &keys[i]);
+			hackmsg.Append(tmp);
 		}
 	}
 }
 
-CMiniOrgan::~CMiniOrgan (void)
+CMiniOrgan::~CMiniOrgan(void)
 {
 	s_pThis = 0;
 }
 
-boolean CMiniOrgan::Initialize (void)
+boolean CMiniOrgan::Initialize()
 {
-	CLogger::Get ()->Write (FromMiniOrgan, LogNotice,
-				"Please atttttttttach an USB keyboard or use serial MIDI!");
-
-	if (m_Serial.Initialize (31250))
-	{
-		m_bUseSerial = TRUE;
-
-		return TRUE;
-	}
-
-	return FALSE;
+	return voice_manager.Initialize(keys);
 }
 
-void CMiniOrgan::Process (boolean bPlugAndPlayUpdated)
+void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 {
-	//this one works too
-	//CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "Process called");
-
-	if( hackmsg.GetLength() > 0 ) {
-		CLogger::Get ()->Write (FromMiniOrgan, LogNotice, hackmsg);
+	if (hackmsg.GetLength() > 0) {
+		// Note that logging does not work when called from GetChunk, so we smuggle messages back via hackmsg
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, hackmsg);
 		hackmsg.Format("");
+	}
+
+	if (num_underruns > 0) {
+		CString tmp;
+		tmp.Format("underruns: %d\n", num_underruns);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+		num_underruns = 0;
 	}
 
 	// The sound controller is callable from TASK_LEVEL only. That's why we must do
 	// this here and not in MIDIPacketHandler(), which is called from IRQ_LEVEL too.
-	if (m_bSetVolume)
-	{
+	if (m_bSetVolume) {
 		m_bSetVolume = FALSE;
 
 		// The sound controller is optional, so we check, if it exists.
-		CSoundController *pController = GetController ();
-		if (pController)
-		{
-			CSoundController::TControlInfo Info = pController->GetControlInfo (
-				CSoundController::ControlVolume, CSoundController::JackDefaultOut,
-				CSoundController::ChannelAll);
-			if (Info.Supported)
-			{
+		CSoundController* pController = GetController();
+		if (pController) {
+			CSoundController::TControlInfo Info = pController->GetControlInfo(
+			    CSoundController::ControlVolume, CSoundController::JackDefaultOut,
+			    CSoundController::ChannelAll);
+			if (Info.Supported) {
 				int nVolume = m_uchVolume;
 				nVolume *= Info.RangeMax - Info.RangeMin;
 				nVolume /= 127;
 				nVolume += Info.RangeMin;
 
-				pController->SetControl (CSoundController::ControlVolume,
-							 CSoundController::JackDefaultOut,
-							 CSoundController::ChannelAll, nVolume);
+				pController->SetControl(CSoundController::ControlVolume,
+				    CSoundController::JackDefaultOut,
+				    CSoundController::ChannelAll, nVolume);
 			}
 		}
 	}
 
-	if (m_pMIDIDevice != 0)
-	{
-		//CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here1");
+	FillChunkBuff();
+
+	if (m_pMIDIDevice != 0) {
+		// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here1");
 		return;
 	}
 
-	if (bPlugAndPlayUpdated)
-	{
-		CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "plug and play updated");
-		m_pMIDIDevice =
-			(CUSBMIDIDevice *) CDeviceNameService::Get ()->GetDevice ("umidi1", FALSE);
-		if (m_pMIDIDevice != 0)
-		{
-			m_pMIDIDevice->RegisterRemovedHandler (USBDeviceRemovedHandler);
-			m_pMIDIDevice->RegisterPacketHandler (MIDIPacketHandler);
+	if (bPlugAndPlayUpdated) {
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, "plug and play updated");
+		m_pMIDIDevice = (CUSBMIDIDevice*)CDeviceNameService::Get()->GetDevice("umidi1", FALSE);
+		if (m_pMIDIDevice != 0) {
+			m_pMIDIDevice->RegisterRemovedHandler(USBDeviceRemovedHandler);
+			m_pMIDIDevice->RegisterPacketHandler(MIDIPacketHandler);
 
-		//CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here2");
+			// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here2");
 			return;
-		}
-	}
-
-	if (m_pKeyboard != 0)
-	{
-		//CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here3");
-		return;
-	}
-
-	if (bPlugAndPlayUpdated)
-	{
-		m_pKeyboard =
-			(CUSBKeyboardDevice *) CDeviceNameService::Get ()->GetDevice ("ukbd1", FALSE);
-		if (m_pKeyboard != 0)
-		{
-			m_pKeyboard->RegisterRemovedHandler (USBDeviceRemovedHandler);
-			m_pKeyboard->RegisterKeyStatusHandlerRaw (KeyStatusHandlerRaw);
-
-		//CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here4");
-			return;
-		}
-	}
-
-	if (!m_bUseSerial)
-	{
-		//CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here5");
-		return;
-	}
-	
-	// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "here0");
-
-	// Read serial MIDI data
-	u8 Buffer[20];
-	int nResult = m_Serial.Read (Buffer, sizeof Buffer);
-	if (nResult <= 0)
-	{
-		return;
-	}
-	// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "here1");
-
-	// Process MIDI messages
-	// See: https://www.midi.org/specifications/item/table-1-summary-of-midi-message
-	for (int i = 0; i < nResult; i++)
-	{
-		u8 uchData = Buffer[i];
-
-		switch (m_nSerialState)
-		{
-		case 0:
-		MIDIRestart:
-			if (   (uchData & 0xE0) == 0x80		// Note on or off, all channels
-			    || (uchData & 0xF0) == 0xB0)	// MIDI CC, all channels
-			{
-				m_SerialMessage[m_nSerialState++] = uchData;
-			}
-			break;
-
-		case 1:
-		case 2:
-			if (uchData & 0x80)			// got status when parameter expected
-			{
-				m_nSerialState = 0;
-
-				goto MIDIRestart;
-			}
-
-			m_SerialMessage[m_nSerialState++] = uchData;
-
-			if (m_nSerialState == 3)		// message is complete
-			{
-				MIDIPacketHandler (0, m_SerialMessage, sizeof m_SerialMessage);
-
-				m_nSerialState = 0;
-			}
-			break;
-
-		default:
-			assert (0);
-			break;
 		}
 	}
 }
 
-#ifdef USE_USB
-
-unsigned CMiniOrgan::GetChunk (s16 *pBuffer, unsigned nChunkSize)
+unsigned CMiniOrgan::GetChunk(u32* pBuffer, unsigned nChunkSize)
 {
-	unsigned nChannels = GetHWTXChannels ();
-	unsigned nResult = nChunkSize;
+	// CString tmp;
+	unsigned nChannels = GetHWTXChannels();
+	assert(s_pThis != 0);
 
-	this_code_is_only_used_when_USE_USB_is_defined(); // I think that means a USB soundcard
-
-	dontcallthisok();
-
-	//// reset sample counter if key has changed
-	//if (m_nFrequency != m_nPrevFrequency)
-	//{
-	//	m_nSampleCount = 0;
-
-	//	m_nPrevFrequency = m_nFrequency;
-	//}
-
-	//// output level has to be changed on every nSampleDelay'th sample (if key is pressed)
-	//unsigned nSampleDelay = 0;
-	//if (m_nFrequency != 0)
-	//{
-	//	nSampleDelay = (SAMPLE_RATE/2 + m_nFrequency/2) / m_nFrequency;
-	//}
-
-	//for (; nChunkSize > 0; nChunkSize -= nChannels)		// fill the whole buffer
-	//{
-	//	s16 nSample = (s16) m_nNullLevel;
-
-	//	if (m_nFrequency != 0)			// key pressed?
-	//	{
-	//		// change output level if required to generate a square wave
-	//		if (++m_nSampleCount >= nSampleDelay)
-	//		{
-	//			m_nSampleCount = 0;
-
-	//			if (m_nCurrentLevel < m_nHighLevel)
-	//			{
-	//				m_nCurrentLevel = m_nHighLevel;
-	//			}
-	//			else
-	//			{
-	//				m_nCurrentLevel = m_nLowLevel;
-	//			}
-	//		}
-
-	//		nSample = (s16) m_nCurrentLevel;
-	//	}
-
-	//	for (unsigned i = 0; i < nChannels; i++)
-	//	{
-	//		*pBuffer++ = nSample;
-	//	}
-	//}
-
-	return nResult;
+	unsigned chunksNeeded = nChunkSize / nChannels;
+	if (chunk_ready) {
+		for (unsigned i = 0; i < chunksNeeded; i++) {
+			for (unsigned j = 0; j < nChannels; j++) {
+				*pBuffer++ = s_pThis->chunkBuff[i];
+			}
+		}
+		chunk_ready = 0;
+	} else {
+		for (unsigned i = 0; i < chunksNeeded; i++) {
+			for (unsigned j = 0; j < nChannels; j++) {
+				*pBuffer++ = (u32)m_nNullLevel;
+			}
+		}
+		num_underruns++;
+	}
+	return nChunkSize;
 }
 
-#endif
-
-unsigned CMiniOrgan::GetChunk (u32 *pBuffer, unsigned nChunkSize)
+void CMiniOrgan::FillChunkBuff()
 {
-	// sizeof(unsigned) is 4 bytes; sizeof(unsigned long) is 8 bytes
-	assert (s_pThis != 0);
-	//if( m_nSampleCount == 0 ) {
-	//	hackmsg.Format("GetChunk called unsigned long sizeof is %d", sizeof(m_nSampleCount));
-	//}
-	//m_nSampleCount++; // sizeof(unsigned) is 4 bytes; sizeof(unsigned long) is 8 bytes
-	//return nChunkSize;
+	assert(s_pThis != 0);
 
-	unsigned nChannels = GetHWTXChannels ();
-	unsigned nResult = nChunkSize;
+	if (chunk_ready) {
+		return; // waiting to be consumed
+	}
 
 	float t;
 
-	int loop_num = 0;
+	// tmp.Format("GetChunk %d\n", nChunkSize); // always 2048
+	// hackmsg.Append(tmp);
 
 	// fill the whole buffer
-	for (; nChunkSize > 0; nChunkSize -= nChannels) {
+	unsigned numToWrite = CHUNK_BUF_NUM_ELEM - chunkBuffReadAvail;
+
+	// tmp.Format("writing %d samples", numToWrite);
+	// hackmsg.Append(tmp);
+
+	islockingneeded = 0;
+
+	for (unsigned chunk_i = 0; chunk_i < 1024; chunk_i++) {
 		t = ((float)m_nSampleCount) / SAMPLE_RATE;
 		m_nSampleCount++;
-		if( m_nSampleCount == 0 ) {
-			hackmsg.Format("m_nSampleCount rolled over");
+		if (m_nSampleCount == 0) {
+			CString tmp;
+			tmp.Format("m_nSampleCount rolled over;");
+			hackmsg.Append(tmp);
 			// TODO adjust all the pressed_at / released_at times? or just clear all keys?
 		}
 
-		//hackmsg.Format("");
-		CString tmp;
+		// new broken way
+		// float output = voice_manager.GetOutput(t);
+
+
+		// old (working way)
 		float output = 0.0f;
 		for (int i = 0; i < MAX_KEYS; i++) {
 			struct key* k = &keys[i];
 			bool done = true;
-			int num_checks = 0;
 			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 				struct osc* osc = &k->oscs[j];
 				osc_set_output(k, osc, t);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					output += osc->output * osc->output_volume * osc->output_volume_m;
-					num_checks++;
 					if (osc->output_volume > 0.0 || k->released_at == 0.0) {
 						done = false;
-						//tmp.Format("key %p done=false; ", k);
-						//hackmsg.Append(tmp);
 					}
 				}
 			}
 			if (done) {
-				if( k->pressed_at > 0.f ) {
-					tmp.Format("releasing key %p with freq=%f at t=%f released_at=%f num_checks=%d;", k, k->freq, t, k->released_at, num_checks);
-					hackmsg.Append(tmp);
-				}
 				k->pressed_at = 0.f;
 				k->released_at = 0.f;
 				k->freq = 0.f;
 			}
-			//if( loop_num == 0 ) {
-			//		tmp.Format("key%d has freq %f;", i, k->freq);
-			//		hackmsg.Append(tmp);
-			//}
 		}
 
-		// this produces whitenoise just fine
-		//float rand_noise = rand_r (&m_nRandSeed) * (2.0 / RAND_MAX) - 1.0;
-		//output = rand_noise;
 
 		if (output > 1.0f) {
 			output = 1.0f;
@@ -458,106 +324,50 @@ unsigned CMiniOrgan::GetChunk (u32 *pBuffer, unsigned nChunkSize)
 			output = -1.0f;
 		}
 
-		u32 nSample = (u32) m_nNullLevel + output * m_nDiffLevel * (m_uchVolume/127.f);
-		for (unsigned i = 0; i < nChannels; i++)
-		{
-			*pBuffer++ = nSample;
-		}
-		loop_num++;
+		u32 nSample = (u32)m_nNullLevel + output * m_nDiffLevel * (m_uchVolume / 127.f);
+
+		// unsigned write_i = (s_pThis->chunkBuffReadIndex + s_pThis->chunkBuffReadAvail) % CHUNK_BUF_NUM_ELEM;
+
+		chunkBuff[chunk_i] = nSample;
+		chunkBuffReadAvail++;
+		numToWrite--;
 	}
 
-//	// reset sample counter if key has changed
-//	if (m_nFrequency != m_nPrevFrequency)
-//	{
-//		m_nSampleCount = 0;
-//
-//		m_nPrevFrequency = m_nFrequency;
-//	}
-//
-//	// output level has to be changed on every nSampleDelay'th sample (if key is pressed)
-//	unsigned nSampleDelay = 0;
-//	if (m_nFrequency != 0)
-//	{
-//		nSampleDelay = (SAMPLE_RATE/2 + m_nFrequency/2) / m_nFrequency;
-//	}
-//
-//#ifdef USE_HDMI
-//	unsigned nFrame = 0;
-//#endif
-//	for (; nChunkSize > 0; nChunkSize -= nChannels)		// fill the whole buffer
-//	{
-//		u32 nSample = (u32) m_nNullLevel;
-//
-//		if (m_nFrequency != 0)			// key pressed?
-//		{
-//			// change output level if required to generate a square wave
-//			if (++m_nSampleCount >= nSampleDelay)
-//			{
-//				m_nSampleCount = 0;
-//
-//				if (m_nCurrentLevel < m_nHighLevel)
-//				{
-//					m_nCurrentLevel = m_nHighLevel;
-//				}
-//				else
-//				{
-//					m_nCurrentLevel = m_nLowLevel;
-//				}
-//			}
-//
-//			nSample = (u32) m_nCurrentLevel;
-//		}
-//
-//#ifdef USE_HDMI
-//		nSample = ConvertIEC958Sample (nSample, nFrame);
-//
-//		if (++nFrame == IEC958_FRAMES_PER_BLOCK)
-//		{
-//			nFrame = 0;
-//		}
-//#endif
-//
-//		for (unsigned i = 0; i < nChannels; i++)
-//		{
-//#ifdef USE_USB
-//			*pBuffer = nSample;
-//			pBuffer = (u32 *) ((u8 *) pBuffer + 3);
-//#else
-//			*pBuffer++ = nSample;
-//#endif
-//		}
-//	}
+	if (islockingneeded) {
+		CString tmp;
+		tmp.Format("islockingneeded was changed;");
+		hackmsg.Append(tmp);
+	}
 
-	return nResult;
+	chunk_ready = 1;
 }
 
-void CMiniOrgan::MIDIPacketHandler (unsigned nCable, u8 *pPacket, unsigned nLength)
+void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLength)
 {
 	CString tmp;
-	assert (s_pThis != 0);
+	assert(s_pThis != 0);
 
-	//CLogger::Get ()->Write (FromMiniOrgan, LogNotice,
+	// CLogger::Get ()->Write (FromMiniOrgan, LogNotice,
 	//			"MIDIPacketHandler called");
 
 	// The packet contents are just normal MIDI data - see
 	// https://www.midi.org/specifications/item/table-1-summary-of-midi-message
 
-	if (nLength < 3)
-	{
-		if( nLength > 0 ) {
+	if (nLength < 3) {
+		if (nLength > 0) {
 			tmp.Format("MIDIPacketHandler error got underrun nLength %u;", nLength);
 			hackmsg.Append(tmp);
 		}
 		return;
 	}
 
-	u8 ucStatus    = pPacket[0];
-	//u8 ucChannel   = ucStatus & 0x0F;
-	u8 ucType      = ucStatus >> 4;
+	u8 ucStatus = pPacket[0];
+	// u8 ucChannel   = ucStatus & 0x0F;
+	u8 ucType = ucStatus >> 4;
 	u8 ucKeyNumber = pPacket[1];
-	u8 ucVelocity  = pPacket[2];
+	u8 ucVelocity = pPacket[2];
 
-	if( nLength > 3 ) {
+	if (nLength > 3) {
 		tmp.Format("MIDIPacketHandler error got overrun nLength %u;", nLength);
 		hackmsg.Append(tmp);
 		return;
@@ -566,22 +376,21 @@ void CMiniOrgan::MIDIPacketHandler (unsigned nCable, u8 *pPacket, unsigned nLeng
 	// TODO deduplicate this (via macro or inline?)
 	float t = ((float)s_pThis->m_nSampleCount) / SAMPLE_RATE;
 
-	if (ucType == MIDI_NOTE_ON)
-	{
-		assert( ucKeyNumber < 128 );
+	if (ucType == MIDI_NOTE_ON) {
+		assert(ucKeyNumber < 128);
 		float freq = s_KeyFrequency[ucKeyNumber];
-		tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
-		hackmsg.Append(tmp);
+		// tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
+		// hackmsg.Append(tmp);
 		struct key* k = 0;
 		get_key(s_pThis->keys, freq, &k, TRUE);
-		if( k ) {
+		if (k) {
 			bool keep_output = (k->freq == freq);
 			k->freq = freq;
-			if( ucVelocity > 127 ) {
+			if (ucVelocity > 127) {
 				ucVelocity = 127;
 			}
-			tmp.Format("%f pressed at %f vel=%d keep_output=%d t=%f key=%p;", freq, t, ucVelocity, keep_output, t, k);
-			hackmsg.Append(tmp);
+			// tmp.Format("%f pressed at %f vel=%d keep_output=%d t=%f key=%p;", freq, t, ucVelocity, keep_output, t, k);
+			// hackmsg.Append(tmp);
 			k->velocity = (float)ucVelocity / 127.0;
 			k->pressed_at = t;
 			k->released_at = 0.0f;
@@ -600,39 +409,33 @@ void CMiniOrgan::MIDIPacketHandler (unsigned nCable, u8 *pPacket, unsigned nLeng
 					osc->freq = freq;
 				}
 			}
-
 		}
-	}
-	else if (ucType == MIDI_NOTE_OFF)
-	{
+	} else if (ucType == MIDI_NOTE_OFF) {
 		float freq = s_KeyFrequency[ucKeyNumber];
 		struct key* k = 0;
-		tmp.Format("%f MIDI_NOTE_OFF key=%d;", freq, ucKeyNumber);
-		hackmsg.Append(tmp);
 		get_key(s_pThis->keys, freq, &k, FALSE);
-		if( k ) {
+		if (k) {
 			k->released_at = t;
-			tmp.Format("%f released_at %f key=%p;", freq, t, k);
-			hackmsg.Append(tmp);
+			// tmp.Format("%f MIDI_NOTE_OFF key=%p;", freq, k);
+			// hackmsg.Append(tmp);
 		} else {
-			tmp.Format("%f released_at %f key not found", freq, t);
-			hackmsg.Append(tmp);
+			// tmp.Format("%f MIDI_NOTE_OFF key not found;", freq, k);
+			// hackmsg.Append(tmp);
 		}
-	}
-	else if (ucType == MIDI_CC)
-	{
-		if (pPacket[1] == MIDI_CC_VOLUME)
-		{
-			//hackmsg.Format("got MIDI_CC MIDI_CC_VOLUME");
+	} else if (ucType == MIDI_CC) {
+		// tmp.Format("got MIDI_CC;");
+		// hackmsg.Append(tmp);
+		if (pPacket[1] == MIDI_CC_VOLUME) {
+			// tmp.Format("got MIDI_CC MIDI_CC_VOLUME");
 			s_pThis->m_uchVolume = pPacket[2];
 			s_pThis->m_bSetVolume = TRUE;
-		} else if (pPacket[1] == 1 ) {
+		} else if (pPacket[1] == 1) {
 			// modulation
 			s_pThis->m_modulation = pPacket[2];
-		} else if (pPacket[1] == 74 ) {
+		} else if (pPacket[1] == 74) {
 			// c1 dial
 			s_pThis->m_noise = pPacket[2];
-		} else if (pPacket[1] == 71 ) {
+		} else if (pPacket[1] == 71) {
 			// c1 dial
 			s_pThis->m_detune = pPacket[2];
 		} else {
@@ -641,27 +444,32 @@ void CMiniOrgan::MIDIPacketHandler (unsigned nCable, u8 *pPacket, unsigned nLeng
 			// TODO handle pPacket[1] == 71 (c2)
 			// TODO handle pPacket[1] == 73 (c3)
 			// TODO handle pPacket[1] == 72 (c4)
-			hackmsg.Format("got MIDI_CC %u", pPacket[1]);
+			// tmp.Format("got MIDI_CC %u", pPacket[1]);
+			// hackmsg.Append(tmp);
 		}
 	} else if (ucType == 14) {
+		// tmp.Format("got uctype 14;");
+		// hackmsg.Append(tmp);
 		if (pPacket[1] == 0) {
 			s_pThis->m_nPitchBend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
 		} else {
-			hackmsg.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
+			// tmp.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
+			// hackmsg.Append(tmp);
 		}
 	} else {
 		// TODO handle 14 (pitch bend)
-		hackmsg.Format("got unknown type %u", ucType);
+		// tmp.Format("got unknown type %u", ucType);
+		// hackmsg.Append(tmp);
 	}
 }
 
-void CMiniOrgan::KeyStatusHandlerRaw (unsigned char ucModifiers, const unsigned char RawKeys[6])
+void CMiniOrgan::KeyStatusHandlerRaw(unsigned char ucModifiers, const unsigned char RawKeys[6])
 {
-	assert (s_pThis != 0);
+	assert(s_pThis != 0);
 
 	// find the key code of a pressed key
-	//char chKey = '\0';
-	//for (unsigned i = 0; i <= 5; i++)
+	// char chKey = '\0';
+	// for (unsigned i = 0; i <= 5; i++)
 	//{
 	//	u8 ucKeyCode = RawKeys[i];
 	//	if (ucKeyCode != 0)
@@ -679,7 +487,7 @@ void CMiniOrgan::KeyStatusHandlerRaw (unsigned char ucModifiers, const unsigned 
 	//	}
 	//}
 
-	//if (chKey != '\0')
+	// if (chKey != '\0')
 	//{
 	//	// find the pressed key in the key table and set its frequency
 	//	for (unsigned i = 0; i < sizeof s_Keys / sizeof s_Keys[0]; i++)
@@ -696,23 +504,16 @@ void CMiniOrgan::KeyStatusHandlerRaw (unsigned char ucModifiers, const unsigned 
 	//	}
 	//}
 
-	//s_pThis->m_nFrequency = 0;
+	// s_pThis->m_nFrequency = 0;
 }
 
-void CMiniOrgan::USBDeviceRemovedHandler (CDevice *pDevice, void *pContext)
+void CMiniOrgan::USBDeviceRemovedHandler(CDevice* pDevice, void* pContext)
 {
-	assert (s_pThis != 0);
+	assert(s_pThis != 0);
 
-	if (s_pThis->m_pMIDIDevice == (CUSBMIDIDevice *) pDevice)
-	{
-		CLogger::Get ()->Write (FromMiniOrgan, LogDebug, "USB MIDI keyboard removed");
+	if (s_pThis->m_pMIDIDevice == (CUSBMIDIDevice*)pDevice) {
+		CLogger::Get()->Write(FromMiniOrgan, LogDebug, "USB MIDI keyboard removed");
 
 		s_pThis->m_pMIDIDevice = 0;
-	}
-	else if (s_pThis->m_pKeyboard == (CUSBKeyboardDevice *) pDevice)
-	{
-		CLogger::Get ()->Write (FromMiniOrgan, LogDebug, "USB PC keyboard removed");
-
-		s_pThis->m_pKeyboard = 0;
 	}
 }

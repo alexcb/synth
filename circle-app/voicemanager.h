@@ -43,9 +43,18 @@ class VoiceManager : public CMultiCoreSupport {
 	VoiceManager(CMemorySystem* pMemorySystem);
 	~VoiceManager(void);
 
-	boolean Initialize(void);
+	boolean Initialize(struct key* keys);
 	void Run(unsigned nCore);
+	float GetOutput(float t);
 
+	protected:
+	struct key* keys;
+	void produce_keys(unsigned nCore);
+	void wait_for_idle_cores();
+	void set_cores_busy();
+
+	float t;
+	volatile float m_fOutputLevel[CORES];
 	volatile TCoreStatus m_CoreStatus[CORES];
 };
 

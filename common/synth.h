@@ -22,10 +22,11 @@ extern "C" {
 #define ATTACK_MIN 0.01
 #define DECAY_MIN 0.01
 
-#define NUM_OSCS 5
+#define NUM_OSCS 3
 #define NUM_OSC_TYPES 2
 
-#define MAX_KEYS 3
+#define MAX_KEYS 4
+// #define MAX_KEYS 8
 
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

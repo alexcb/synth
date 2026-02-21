@@ -5,6 +5,6 @@ set -e
 
 for p in common linux circle-app; do
 	cd "$p"
-	find -regex '.*\.\(c\|h\)$' -exec clang-format -i {} \;
+	find -regex '.*\.\(c\|h\|cpp\)$' -exec clang-format -i {} \;
 	cd ..
 done

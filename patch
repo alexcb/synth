@@ -1,13 +1,62 @@
-[vfo2]
-type=square
-output=1.0
-attack=0.4
+[vfo1]
+type=pulse12
+output=0.3
+attack=0.03
+decay=0.2
+sustain=0.0
 release=0.0
-sustain=1.0
-decay=0.7
-#amp_input=lfo1
-#amp_input_m=0.9
+
+[vfo2]
+type=sine
+output=1.0
+attack=0.2
+release=0.8
+sustain=0.4
+decay=0.2
+
+[vfo3]
+type=square
+output=0.4
+attack=0.2
+release=0.8
+sustain=0.4
+decay=0.2
+amp_input=lfo1
+amp_input_m=1.0
 
 [lfo1]
-type=saw_down
-freq=4.0
+type=triangle
+freq=0.3
+
+
+# [vfo3]
+# type=sine
+# freq_m=0.99
+# output=1.0
+# attack=0.2
+# release=0.8
+# sustain=0.4
+# decay=0.2
+# amp_input=lfo3
+# phase_input=lfo4
+# phase_input_m=0.03
+# 
+# [vfo4]
+# type=sine
+# freq_m=1.01
+# output=1.0
+# attack=0.2
+# release=0.8
+# sustain=0.4
+# decay=0.2
+# amp_input=lfo4
+# phase_input=lfo3
+# phase_input_m=0.03
+# 
+# [lfo3]
+# type=random
+# freq=3.0
+# 
+# [lfo4]
+# type=random
+# freq=3.0

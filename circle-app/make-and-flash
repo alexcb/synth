@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-sh -c 'cd ..; ./encode-patch.py > patch_contents.h'
+sh -c 'cd ..; ./encode-patch.py > circle-app/patch_contents.h'
 cd ../common
 make clean
 make
