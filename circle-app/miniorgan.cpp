@@ -523,8 +523,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 	if (ucType == MIDI_NOTE_ON) {
 		assert(ucKeyNumber < 128);
 		float freq = s_KeyFrequency[ucKeyNumber];
-		//tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
-		//hackmsg.Append(tmp);
+		// tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
+		// hackmsg.Append(tmp);
 		struct key* k = 0;
 		get_key(s_pThis->keys, freq, &k, TRUE);
 		if (k) {
@@ -533,8 +533,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			if (ucVelocity > 127) {
 				ucVelocity = 127;
 			}
-			//tmp.Format("%f pressed at %f vel=%d keep_output=%d t=%f key=%p;", freq, t, ucVelocity, keep_output, t, k);
-			//hackmsg.Append(tmp);
+			// tmp.Format("%f pressed at %f vel=%d keep_output=%d t=%f key=%p;", freq, t, ucVelocity, keep_output, t, k);
+			// hackmsg.Append(tmp);
 			k->velocity = (float)ucVelocity / 127.0;
 			k->pressed_at = t;
 			k->released_at = 0.0f;
