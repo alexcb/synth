@@ -450,6 +450,8 @@ void CMiniOrgan::FillChunkBuff()
 
 	// islockingneeded = 0;
 
+	voice_manager.ProduceOutput(m_nSampleCount);
+
 	for (unsigned chunk_i = 0; chunk_i < 1024; chunk_i++) {
 		t = ((float)m_nSampleCount) / SAMPLE_RATE;
 		m_nSampleCount++;
@@ -460,7 +462,7 @@ void CMiniOrgan::FillChunkBuff()
 			// TODO adjust all the pressed_at / released_at times? or just clear all keys?
 		}
 
-		float output = voice_manager.GetOutput(t);
+		float output = voice_manager.GetOutput(chunk_i);
 
 		if (output > 1.0f) {
 			output = 1.0f;

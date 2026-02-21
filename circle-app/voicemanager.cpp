@@ -46,7 +46,8 @@ VoiceManager::VoiceManager(CMemorySystem* pMemorySystem)
 
 	for (unsigned nCore = 0; nCore < CORES; nCore++) {
 		m_CoreStatus[nCore] = CoreStatusInit;
-		m_fOutputLevel[nCore] = 0.f;
+
+		m_fOutputLevel[nCore] = static_cast<float*>(::operator new(CHUNK_SIZE * sizeof(float)));
 	}
 }
 
@@ -128,49 +129,58 @@ void VoiceManager::Run(unsigned nCore)
 void VoiceManager::produce_keys(unsigned nCore)
 {
 	DataSyncBarrier();
-	float t = this->t;
-	float output = 0.0f;
+	unsigned long tick = this->tick;
+
 	const int start = nCore * (MAX_KEYS / CORES);
 	const int end = (nCore + 1) * (MAX_KEYS / CORES);
-	for (int i = start; i < end; i++) {
-		struct key* k = &keys[i];
-		bool done = true;
-		for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
-			struct osc* osc = &k->oscs[j];
-			osc_set_output(k, osc, t);
-			if (osc->osc_type == OSC_TYPE_VFO) {
-				// if( osc->output > 0.0f ) {
-				//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);
-				// }
-				output += osc->output * osc->output_volume * osc->output_volume_m;
-				if (osc->output_volume > 0.0 || k->released_at == 0.0) {
-					done = false;
+
+	for (int chunk_i = 0; chunk_i < CHUNK_SIZE; chunk_i++) {
+		float t = ((float)tick) / SAMPLE_RATE;
+		tick++;
+		float output = 0.0f;
+		for (int i = start; i < end; i++) {
+			struct key* k = &keys[i];
+			bool done = true;
+			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
+				struct osc* osc = &k->oscs[j];
+				osc_set_output(k, osc, t);
+				if (osc->osc_type == OSC_TYPE_VFO) {
+					// if( osc->output > 0.0f ) {
+					//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);
+					// }
+					output += osc->output * osc->output_volume * osc->output_volume_m;
+					if (osc->output_volume > 0.0 || k->released_at == 0.0) {
+						done = false;
+					}
 				}
 			}
+			if (done) {
+				// if (k->pressed_at > 0.f) {
+				//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u is done", t, nCore, k->freq, i);
+				// }
+				k->pressed_at = 0.f;
+				k->released_at = 0.f;
+				k->freq = 0.f;
+			}
 		}
-		if (done) {
-			// if (k->pressed_at > 0.f) {
-			//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u is done", t, nCore, k->freq, i);
-			// }
-			k->pressed_at = 0.f;
-			k->released_at = 0.f;
-			k->freq = 0.f;
-		}
+		m_fOutputLevel[nCore][chunk_i] = output;
 	}
-	m_fOutputLevel[nCore] = output;
 	DataSyncBarrier();
 }
 
-float VoiceManager::GetOutput(float t)
+void VoiceManager::ProduceOutput(unsigned long t)
 {
-	this->t = t;
+	tick = t;
 	set_cores_busy();
 	produce_keys(0);
 	wait_for_idle_cores();
+}
 
-	float output = m_fOutputLevel[0];
+float VoiceManager::GetOutput(int chunk_i)
+{
+	float output = m_fOutputLevel[0][chunk_i];
 	for (unsigned nCore = 1; nCore < CORES; nCore++) {
-		output += m_fOutputLevel[nCore];
+		output += m_fOutputLevel[nCore][chunk_i];
 	}
 	return output;
 }
