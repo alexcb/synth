@@ -69,7 +69,6 @@ boolean VoiceManager::Initialize(struct key* keys)
 void VoiceManager::wait_for_idle_cores()
 {
 	for (unsigned nCore = 1; nCore < CORES; nCore++) {
-		m_fOutputLevel[nCore] = 0.f;
 		while (m_CoreStatus[nCore] != CoreStatusIdle) {
 			// just wait
 		}
@@ -93,8 +92,6 @@ void VoiceManager::Run(unsigned nCore)
 			// just wait
 		}
 		assert(m_CoreStatus[nCore] == CoreStatusBusy);
-		DataSyncBarrier();
-		// TODO do some work, in parallel
 
 		produce_keys(nCore);
 
@@ -130,6 +127,7 @@ void VoiceManager::Run(unsigned nCore)
 
 void VoiceManager::produce_keys(unsigned nCore)
 {
+	DataSyncBarrier();
 	float t = this->t;
 	float output = 0.0f;
 	const int start = nCore * (MAX_KEYS / CORES);
@@ -159,10 +157,8 @@ void VoiceManager::produce_keys(unsigned nCore)
 			k->freq = 0.f;
 		}
 	}
-	// if (output > 0.f) {
-	//	CLogger::Get()->Write("VOICEMAN", LogNotice, "called at time %f, core %u output is %f, range %d-%d", t, nCore, output, start, end);
-	// }
 	m_fOutputLevel[nCore] = output;
+	DataSyncBarrier();
 }
 
 float VoiceManager::GetOutput(float t)
@@ -171,8 +167,6 @@ float VoiceManager::GetOutput(float t)
 	set_cores_busy();
 	produce_keys(0);
 	wait_for_idle_cores();
-
-	DataSyncBarrier();
 
 	float output = m_fOutputLevel[0];
 	for (unsigned nCore = 1; nCore < CORES; nCore++) {

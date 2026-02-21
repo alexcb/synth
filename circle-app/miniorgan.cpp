@@ -223,7 +223,7 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 			CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 
 			// don't print this again for a while
-			ignore_underruns = 1000;
+			ignore_underruns = 10000;
 		}
 		num_underruns = 0;
 	}
