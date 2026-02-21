@@ -84,6 +84,8 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	static void USBDeviceRemovedHandler(CDevice* pDevice, void* pContext);
 
+	void FillChunkBuff();
+
     private:
 	CUSBMIDIDevice* volatile m_pMIDIDevice;
 	CUSBKeyboardDevice* volatile m_pKeyboard;
@@ -111,6 +113,10 @@ class CMiniOrgan : public SOUND_CLASS {
 	u8 m_detune;
 
 	unsigned m_nRandSeed;
+
+	u16 chunkBuffReadIndex;
+	u16 chunkBuffReadAvail;
+	u32* chunkBuff;
 
 	struct key* keys;
 	// unsigned tt; // TODO can I use uint32_t instead?

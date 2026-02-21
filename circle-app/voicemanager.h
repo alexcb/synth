@@ -54,7 +54,7 @@ class VoiceManager : public CMultiCoreSupport {
 	void set_cores_busy();
 
 	float t;
-	volatile float m_fOutputLevel[CORES];
+	float m_fOutputLevel[CORES];
 	volatile TCoreStatus m_CoreStatus[CORES];
 };
 

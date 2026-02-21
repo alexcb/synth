@@ -25,8 +25,7 @@ extern "C" {
 #define NUM_OSCS 3
 #define NUM_OSC_TYPES 2
 
-#define MAX_KEYS 4
-// #define MAX_KEYS 8
+#define MAX_KEYS 8
 
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

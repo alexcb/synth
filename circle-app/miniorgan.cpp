@@ -40,6 +40,8 @@
 
 #define KEY_NONE 255
 
+#define CHUNK_BUF_NUM_ELEM 1024 * 2
+
 static const char FromMiniOrgan[] = "organ";
 
 // See: http://www.deimos.ca/notefreqs/
@@ -84,6 +86,11 @@ static inline int rand_r(unsigned* pSeed)
 	return (unsigned)(*pSeed / 65536) % 32768;
 }
 
+// instead we just mark it as volatile and only change these when using cpu core 0
+volatile int chunk_ready = 0;
+volatile int num_underruns = 0;
+int ignore_underruns = 0;
+
 CString hackmsg;
 // char hackmsg[1024];
 
@@ -115,8 +122,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_nSerialState(0)
     , m_nSampleCount(0)
     , m_nPrevFrequency(0)
-    ,
-    m_bSetVolume(FALSE)
+    , m_bSetVolume(FALSE)
     , m_nPitchBend(0)
     , m_uchVolume(127)
     , m_modulation(0)
@@ -134,6 +140,8 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 	CString tmp;
 
 	// hackmsg[0] = '\0';
+
+	chunkBuff = static_cast<u32*>(::operator new(CHUNK_BUF_NUM_ELEM * 4));
 
 	// TODO move this into common
 	size_t key_bytes = sizeof(struct key) * MAX_KEYS;
@@ -204,6 +212,22 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 		hackmsg.Format("");
 	}
 
+	if (ignore_underruns > 0) {
+		ignore_underruns--;
+	}
+
+	if (num_underruns > 0) {
+		if (ignore_underruns == 0) {
+			CString tmp;
+			tmp.Format("underruns: %d\n", num_underruns);
+			CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+
+			// don't print this again for a while
+			ignore_underruns = 1000;
+		}
+		num_underruns = 0;
+	}
+
 	// The sound controller is callable from TASK_LEVEL only. That's why we must do
 	// this here and not in MIDIPacketHandler(), which is called from IRQ_LEVEL too.
 	if (m_bSetVolume) {
@@ -227,6 +251,8 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 			}
 		}
 	}
+
+	FillChunkBuff();
 
 	if (m_pMIDIDevice != 0) {
 		// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here1");
@@ -380,69 +406,84 @@ unsigned CMiniOrgan::GetChunk(s16* pBuffer, unsigned nChunkSize)
 
 unsigned CMiniOrgan::GetChunk(u32* pBuffer, unsigned nChunkSize)
 {
-	// sizeof(unsigned) is 4 bytes; sizeof(unsigned long) is 8 bytes
-	assert(s_pThis != 0);
-	// if( m_nSampleCount == 0 ) {
-	//	hackmsg.Format("GetChunk called unsigned long sizeof is %d", sizeof(m_nSampleCount));
-	// }
-	// m_nSampleCount++; // sizeof(unsigned) is 4 bytes; sizeof(unsigned long) is 8 bytes
-	// return nChunkSize;
-
+	// CString tmp;
 	unsigned nChannels = GetHWTXChannels();
-	unsigned nResult = nChunkSize;
+	assert(s_pThis != 0);
+
+	unsigned chunksNeeded = nChunkSize / nChannels;
+	if (chunk_ready) {
+		for (unsigned i = 0; i < chunksNeeded; i++) {
+			for (unsigned j = 0; j < nChannels; j++) {
+				*pBuffer++ = s_pThis->chunkBuff[i];
+			}
+		}
+		chunk_ready = 0;
+	} else {
+		for (unsigned i = 0; i < chunksNeeded; i++) {
+			for (unsigned j = 0; j < nChannels; j++) {
+				*pBuffer++ = (u32)m_nNullLevel;
+			}
+		}
+		num_underruns++;
+	}
+	return nChunkSize;
+}
+
+void CMiniOrgan::FillChunkBuff()
+{
+	assert(s_pThis != 0);
+
+	if (chunk_ready) {
+		return; // waiting to be consumed
+	}
 
 	float t;
 
-	int loop_num = 0;
+	// tmp.Format("GetChunk %d\n", nChunkSize); // always 2048
+	// hackmsg.Append(tmp);
 
 	// fill the whole buffer
-	for (; nChunkSize > 0; nChunkSize -= nChannels) {
+	unsigned numToWrite = CHUNK_BUF_NUM_ELEM - chunkBuffReadAvail;
+
+	// tmp.Format("writing %d samples", numToWrite);
+	// hackmsg.Append(tmp);
+
+	// islockingneeded = 0;
+
+	for (unsigned chunk_i = 0; chunk_i < 1024; chunk_i++) {
 		t = ((float)m_nSampleCount) / SAMPLE_RATE;
 		m_nSampleCount++;
 		if (m_nSampleCount == 0) {
-			hackmsg.Format("m_nSampleCount rolled over");
+			CString tmp;
+			tmp.Format("m_nSampleCount rolled over;");
+			hackmsg.Append(tmp);
 			// TODO adjust all the pressed_at / released_at times? or just clear all keys?
 		}
 
-		// hackmsg.Format("");
-		CString tmp;
+		// new broken way
+		// float output = voice_manager.GetOutput(t);
+
+		// old (working way)
 		float output = 0.0f;
 		for (int i = 0; i < MAX_KEYS; i++) {
 			struct key* k = &keys[i];
 			bool done = true;
-			int num_checks = 0;
 			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 				struct osc* osc = &k->oscs[j];
 				osc_set_output(k, osc, t);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					output += osc->output * osc->output_volume * osc->output_volume_m;
-					num_checks++;
 					if (osc->output_volume > 0.0 || k->released_at == 0.0) {
 						done = false;
-						// tmp.Format("key %p done=false; ", k);
-						// hackmsg.Append(tmp);
 					}
 				}
 			}
 			if (done) {
-				if (k->pressed_at > 0.f) {
-					tmp.Format("releasing key %p with freq=%f at t=%f released_at=%f num_checks=%d;", k, k->freq, t, k->released_at, num_checks);
-					hackmsg.Append(tmp);
-				}
 				k->pressed_at = 0.f;
 				k->released_at = 0.f;
 				k->freq = 0.f;
 			}
-			// if( loop_num == 0 ) {
-			//		tmp.Format("key%d has freq %f;", i, k->freq);
-			//		hackmsg.Append(tmp);
-			// }
 		}
-
-		// this produces whitenoise just fine
-		// float rand_noise = rand_r (&m_nRandSeed) * (2.0 / RAND_MAX) - 1.0;
-		// output = rand_noise;
-
 		if (output > 1.0f) {
 			output = 1.0f;
 		} else if (output < -1.0f) {
@@ -450,75 +491,21 @@ unsigned CMiniOrgan::GetChunk(u32* pBuffer, unsigned nChunkSize)
 		}
 
 		u32 nSample = (u32)m_nNullLevel + output * m_nDiffLevel * (m_uchVolume / 127.f);
-		for (unsigned i = 0; i < nChannels; i++) {
-			*pBuffer++ = nSample;
-		}
-		loop_num++;
+
+		// unsigned write_i = (s_pThis->chunkBuffReadIndex + s_pThis->chunkBuffReadAvail) % CHUNK_BUF_NUM_ELEM;
+
+		chunkBuff[chunk_i] = nSample;
+		chunkBuffReadAvail++;
+		numToWrite--;
 	}
 
-	//	// reset sample counter if key has changed
-	//	if (m_nFrequency != m_nPrevFrequency)
-	//	{
-	//		m_nSampleCount = 0;
-	//
-	//		m_nPrevFrequency = m_nFrequency;
-	//	}
-	//
-	//	// output level has to be changed on every nSampleDelay'th sample (if key is pressed)
-	//	unsigned nSampleDelay = 0;
-	//	if (m_nFrequency != 0)
-	//	{
-	//		nSampleDelay = (SAMPLE_RATE/2 + m_nFrequency/2) / m_nFrequency;
-	//	}
-	//
-	// #ifdef USE_HDMI
-	//	unsigned nFrame = 0;
-	// #endif
-	//	for (; nChunkSize > 0; nChunkSize -= nChannels)		// fill the whole buffer
-	//	{
-	//		u32 nSample = (u32) m_nNullLevel;
-	//
-	//		if (m_nFrequency != 0)			// key pressed?
-	//		{
-	//			// change output level if required to generate a square wave
-	//			if (++m_nSampleCount >= nSampleDelay)
-	//			{
-	//				m_nSampleCount = 0;
-	//
-	//				if (m_nCurrentLevel < m_nHighLevel)
-	//				{
-	//					m_nCurrentLevel = m_nHighLevel;
-	//				}
-	//				else
-	//				{
-	//					m_nCurrentLevel = m_nLowLevel;
-	//				}
-	//			}
-	//
-	//			nSample = (u32) m_nCurrentLevel;
-	//		}
-	//
-	// #ifdef USE_HDMI
-	//		nSample = ConvertIEC958Sample (nSample, nFrame);
-	//
-	//		if (++nFrame == IEC958_FRAMES_PER_BLOCK)
-	//		{
-	//			nFrame = 0;
-	//		}
-	// #endif
-	//
-	//		for (unsigned i = 0; i < nChannels; i++)
-	//		{
-	// #ifdef USE_USB
-	//			*pBuffer = nSample;
-	//			pBuffer = (u32 *) ((u8 *) pBuffer + 3);
-	// #else
-	//			*pBuffer++ = nSample;
-	// #endif
-	//		}
-	//	}
+	// if (islockingneeded) {
+	//         CString tmp;
+	//         tmp.Format("islockingneeded was changed;");
+	//         hackmsg.Append(tmp);
+	// }
 
-	return nResult;
+	chunk_ready = 1;
 }
 
 void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLength)
@@ -558,8 +545,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 	if (ucType == MIDI_NOTE_ON) {
 		assert(ucKeyNumber < 128);
 		float freq = s_KeyFrequency[ucKeyNumber];
-		tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
-		hackmsg.Append(tmp);
+		//tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
+		//hackmsg.Append(tmp);
 		struct key* k = 0;
 		get_key(s_pThis->keys, freq, &k, TRUE);
 		if (k) {
@@ -568,8 +555,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			if (ucVelocity > 127) {
 				ucVelocity = 127;
 			}
-			tmp.Format("%f pressed at %f vel=%d keep_output=%d t=%f key=%p;", freq, t, ucVelocity, keep_output, t, k);
-			hackmsg.Append(tmp);
+			//tmp.Format("%f pressed at %f vel=%d keep_output=%d t=%f key=%p;", freq, t, ucVelocity, keep_output, t, k);
+			//hackmsg.Append(tmp);
 			k->velocity = (float)ucVelocity / 127.0;
 			k->pressed_at = t;
 			k->released_at = 0.0f;
@@ -592,16 +579,9 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 	} else if (ucType == MIDI_NOTE_OFF) {
 		float freq = s_KeyFrequency[ucKeyNumber];
 		struct key* k = 0;
-		tmp.Format("%f MIDI_NOTE_OFF key=%d;", freq, ucKeyNumber);
-		hackmsg.Append(tmp);
 		get_key(s_pThis->keys, freq, &k, FALSE);
 		if (k) {
 			k->released_at = t;
-			tmp.Format("%f released_at %f key=%p;", freq, t, k);
-			hackmsg.Append(tmp);
-		} else {
-			tmp.Format("%f released_at %f key not found", freq, t);
-			hackmsg.Append(tmp);
 		}
 	} else if (ucType == MIDI_CC) {
 		if (pPacket[1] == MIDI_CC_VOLUME) {
