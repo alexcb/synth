@@ -460,30 +460,8 @@ void CMiniOrgan::FillChunkBuff()
 			// TODO adjust all the pressed_at / released_at times? or just clear all keys?
 		}
 
-		// new broken way
-		// float output = voice_manager.GetOutput(t);
+		float output = voice_manager.GetOutput(t);
 
-		// old (working way)
-		float output = 0.0f;
-		for (int i = 0; i < MAX_KEYS; i++) {
-			struct key* k = &keys[i];
-			bool done = true;
-			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
-				struct osc* osc = &k->oscs[j];
-				osc_set_output(k, osc, t);
-				if (osc->osc_type == OSC_TYPE_VFO) {
-					output += osc->output * osc->output_volume * osc->output_volume_m;
-					if (osc->output_volume > 0.0 || k->released_at == 0.0) {
-						done = false;
-					}
-				}
-			}
-			if (done) {
-				k->pressed_at = 0.f;
-				k->released_at = 0.f;
-				k->freq = 0.f;
-			}
-		}
 		if (output > 1.0f) {
 			output = 1.0f;
 		} else if (output < -1.0f) {
