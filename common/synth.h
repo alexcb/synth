@@ -53,6 +53,7 @@ struct osc {
 	float decay; // time from 1 to sustain level
 	float sustain; // level ranging from 0 to 1
 	float release; // time from sustain level to 0
+	float pitch_m; // if set, multiply pitch bend by this amount
 
 	// internal values
 	// float pressed_at; // TODO remove these
@@ -75,10 +76,15 @@ struct key {
 	float future_released_at; // only to be used while using computer keyboard trigger
 };
 
+struct params {
+	float pitch;
+	float mod;
+};
+
 int parse_wave_type(const char* s);
 int parse_osc(const char* s, int* osc_type, int* n);
 int load_patch(char* path, struct osc* oscs);
-void osc_set_output(struct key* key, struct osc* osc, float t);
+void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
 // TODO remove this

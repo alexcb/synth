@@ -13,6 +13,7 @@ attack=0.2
 release=0.8
 sustain=0.4
 decay=0.2
+pitch_m=0.1
 
 [vfo3]
 type=square

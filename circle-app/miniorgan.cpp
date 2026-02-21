@@ -131,6 +131,10 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 {
 	s_pThis = this;
 
+	params = static_cast<struct params*>(::operator new(sizeof(struct params)));
+	memset(params, 0, sizeof(struct params));
+	voice_manager.params = params;
+
 	m_nLowLevel = GetRangeMin() * VOLUME_PERCENT / 100;
 	m_nHighLevel = GetRangeMax() * VOLUME_PERCENT / 100;
 	m_nNullLevel = (m_nHighLevel + m_nLowLevel) / 2;
@@ -252,6 +256,7 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 		}
 	}
 
+	// set_knobs();
 	FillChunkBuff();
 
 	if (m_pMIDIDevice != 0) {
@@ -429,6 +434,11 @@ unsigned CMiniOrgan::GetChunk(u32* pBuffer, unsigned nChunkSize)
 	return nChunkSize;
 }
 
+// void CMiniOrgan::set_knobs()
+//{
+//	voice_manager.params.
+// }
+
 void CMiniOrgan::FillChunkBuff()
 {
 	assert(s_pThis != 0);
@@ -437,23 +447,12 @@ void CMiniOrgan::FillChunkBuff()
 		return; // waiting to be consumed
 	}
 
-	float t;
-
-	// tmp.Format("GetChunk %d\n", nChunkSize); // always 2048
-	// hackmsg.Append(tmp);
-
 	// fill the whole buffer
 	unsigned numToWrite = CHUNK_BUF_NUM_ELEM - chunkBuffReadAvail;
-
-	// tmp.Format("writing %d samples", numToWrite);
-	// hackmsg.Append(tmp);
-
-	// islockingneeded = 0;
 
 	voice_manager.ProduceOutput(m_nSampleCount);
 
 	for (unsigned chunk_i = 0; chunk_i < 1024; chunk_i++) {
-		t = ((float)m_nSampleCount) / SAMPLE_RATE;
 		m_nSampleCount++;
 		if (m_nSampleCount == 0) {
 			CString tmp;
@@ -472,18 +471,10 @@ void CMiniOrgan::FillChunkBuff()
 
 		u32 nSample = (u32)m_nNullLevel + output * m_nDiffLevel * (m_uchVolume / 127.f);
 
-		// unsigned write_i = (s_pThis->chunkBuffReadIndex + s_pThis->chunkBuffReadAvail) % CHUNK_BUF_NUM_ELEM;
-
 		chunkBuff[chunk_i] = nSample;
 		chunkBuffReadAvail++;
 		numToWrite--;
 	}
-
-	// if (islockingneeded) {
-	//         CString tmp;
-	//         tmp.Format("islockingneeded was changed;");
-	//         hackmsg.Append(tmp);
-	// }
 
 	chunk_ready = 1;
 }
@@ -587,7 +578,9 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 		}
 	} else if (ucType == 14) {
 		if (pPacket[1] == 0) {
-			s_pThis->m_nPitchBend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
+			unsigned pitch_bend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
+			// s_pThis->m_nPitchBend = ((float)pitch_bend - 64.f) / 64.f;
+			s_pThis->voice_manager.params->pitch = ((float)pitch_bend - 64.f) / 64.f;
 		} else {
 			hackmsg.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
 		}

@@ -48,6 +48,8 @@ class VoiceManager : public CMultiCoreSupport {
 	void ProduceOutput(unsigned long t);
 	float GetOutput(int chunk_i);
 
+	struct params* params;
+
     protected:
 	struct key* keys;
 	void produce_keys(unsigned nCore);

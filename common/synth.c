@@ -233,6 +233,8 @@ int load_patch(char* src, struct osc* oscs)
 			osc->sustain = atof(v);
 		} else if (strcmp(buffer, "release") == 0) {
 			osc->release = atof(v);
+		} else if (strcmp(buffer, "pitch_m") == 0) {
+			osc->pitch_m = atof(v);
 		} else {
 			// printf("unhandled line %s\n", buffer);
 		}
@@ -241,7 +243,7 @@ int load_patch(char* src, struct osc* oscs)
 	return 0;
 }
 
-void osc_set_output(struct key* key, struct osc* osc, float t)
+void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t)
 {
 	if (osc->wave_type == WAVE_TYPE_NONE) {
 		assert(osc->output == 0.0f);
@@ -253,6 +255,11 @@ void osc_set_output(struct key* key, struct osc* osc, float t)
 		osc->output = 0.0f;
 		return;
 	}
+
+	// TODO this produces crackles since the pitch value jumps too quickly
+	// we need to introduce freq smoothing; however the actual osc->freq value can't be changed
+	// since it's used for lookups
+	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m);
 
 	freq = exp2f(log2f(freq) + osc->detune);
 	if (osc->phase_input && osc->phase_input->wave_type) {

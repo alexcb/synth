@@ -90,6 +90,7 @@ class CMiniOrgan : public SOUND_CLASS {
 	CUSBMIDIDevice* volatile m_pMIDIDevice;
 	CUSBKeyboardDevice* volatile m_pKeyboard;
 
+	struct params* params;
 	VoiceManager voice_manager;
 
 	CSerialDevice m_Serial;
@@ -104,7 +105,7 @@ class CMiniOrgan : public SOUND_CLASS {
 	int m_nCurrentLevel;
 	unsigned long m_nSampleCount;
 	unsigned m_nPrevFrequency;
-	unsigned m_nPitchBend;
+	float m_nPitchBend;
 
 	boolean m_bSetVolume;
 	u8 m_uchVolume;
