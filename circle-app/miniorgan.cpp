@@ -28,6 +28,7 @@
 
 #include "../common/synth.h"
 #include "patch_contents.h"
+#include "voicemanager.h"
 
 #define VOLUME_PERCENT 20
 
@@ -99,6 +100,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 #endif
 #endif
           )
+    , voice_manager(CMemorySystem::Get())
     , m_pMIDIDevice(0)
     , m_pKeyboard(0)
     ,
@@ -114,7 +116,6 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_nSampleCount(0)
     , m_nPrevFrequency(0)
     ,
-    // m_ucKeyNumber (KEY_NONE),
     m_bSetVolume(FALSE)
     , m_nPitchBend(0)
     , m_uchVolume(127)
@@ -130,7 +131,6 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 	m_nDiffLevel = (m_nHighLevel - m_nLowLevel) / 2;
 	m_nCurrentLevel = m_nNullLevel;
 
-	memset(m_ucKeyNumber, 0, sizeof m_ucKeyNumber);
 	CString tmp;
 
 	// hackmsg[0] = '\0';
@@ -181,6 +181,9 @@ boolean CMiniOrgan::Initialize(void)
 {
 	CLogger::Get()->Write(FromMiniOrgan, LogNotice,
 	    "Please atttttttttach an USB keyboard or use serial MIDI!");
+
+	// TODO error checking
+	voice_manager.Initialize(keys);
 
 	if (m_Serial.Initialize(31250)) {
 		m_bUseSerial = TRUE;

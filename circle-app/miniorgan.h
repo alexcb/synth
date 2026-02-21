@@ -54,7 +54,7 @@
 #include <circle/usb/usbkeyboard.h>
 #include <circle/usb/usbmidi.h>
 
-#define MAX_NOTES 10
+#include "voicemanager.h"
 
 struct TNoteInfo {
 	char Key;
@@ -88,6 +88,8 @@ class CMiniOrgan : public SOUND_CLASS {
 	CUSBMIDIDevice* volatile m_pMIDIDevice;
 	CUSBKeyboardDevice* volatile m_pKeyboard;
 
+	VoiceManager voice_manager;
+
 	CSerialDevice m_Serial;
 	boolean m_bUseSerial;
 	unsigned m_nSerialState;
@@ -99,11 +101,8 @@ class CMiniOrgan : public SOUND_CLASS {
 	int m_nHighLevel;
 	int m_nCurrentLevel;
 	unsigned long m_nSampleCount;
-	// unsigned m_nFrequency[MAX_NOTES];
 	unsigned m_nPrevFrequency;
 	unsigned m_nPitchBend;
-
-	u8 m_ucKeyNumber[MAX_NOTES];
 
 	boolean m_bSetVolume;
 	u8 m_uchVolume;
