@@ -117,9 +117,23 @@ void VoiceManager::produce_keys(unsigned nCore)
 		float t = ((float)tick) / SAMPLE_RATE;
 		tick++;
 
-		const float freq_smoothing = 0.0001f;
-		if ((pitchwheel[nCore] - params->pitch) > 0.0001 || (pitchwheel[nCore] + params->pitch) > 0.0001) {
-			pitchwheel[nCore] = pitchwheel[nCore] * freq_smoothing + params->pitch * (1.0f - freq_smoothing);
+		// It's chirping
+		// const float freq_smoothing = 0.98f;
+		// const float tolerance = 1e-10f;
+		// if ((pitchwheel[nCore] - params->pitch) > tolerance || (params->pitch - pitchwheel[nCore]) > tolerance) {
+		// 	pitchwheel[nCore] = pitchwheel[nCore] * freq_smoothing + params->pitch * (1.0f - freq_smoothing);
+		// } else {
+		// 	pitchwheel[nCore] = params->pitch;
+		// }
+		// thread_param.pitch = pitchwheel[nCore];
+
+		const float tolerance = 1e-2f;
+		const float delta = tolerance / 2.f;
+		const float diff = pitchwheel[nCore] - params->pitch;
+		if (diff > tolerance) {
+			pitchwheel[nCore] -= delta;
+		} else if (-diff > tolerance) {
+			pitchwheel[nCore] += delta;
 		} else {
 			pitchwheel[nCore] = params->pitch;
 		}
