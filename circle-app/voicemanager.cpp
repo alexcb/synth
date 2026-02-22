@@ -47,6 +47,7 @@ VoiceManager::VoiceManager(CMemorySystem* pMemorySystem)
 	for (unsigned nCore = 0; nCore < CORES; nCore++) {
 		m_CoreStatus[nCore] = CoreStatusInit;
 
+		pitchwheel[nCore] = 0.0f;
 		m_fOutputLevel[nCore] = static_cast<float*>(::operator new(CHUNK_SIZE * sizeof(float)));
 	}
 }
@@ -110,16 +111,27 @@ void VoiceManager::produce_keys(unsigned nCore)
 	const int start = nCore * (MAX_KEYS / CORES);
 	const int end = (nCore + 1) * (MAX_KEYS / CORES);
 
+	struct params thread_param;
+
 	for (int chunk_i = 0; chunk_i < CHUNK_SIZE; chunk_i++) {
 		float t = ((float)tick) / SAMPLE_RATE;
 		tick++;
+
+		const float freq_smoothing = 0.0001f;
+		if ((pitchwheel[nCore] - params->pitch) > 0.0001 || (pitchwheel[nCore] + params->pitch) > 0.0001) {
+			pitchwheel[nCore] = pitchwheel[nCore] * freq_smoothing + params->pitch * (1.0f - freq_smoothing);
+		} else {
+			pitchwheel[nCore] = params->pitch;
+		}
+		thread_param.pitch = pitchwheel[nCore];
+
 		float output = 0.0f;
 		for (int i = start; i < end; i++) {
 			struct key* k = &keys[i];
 			bool done = true;
 			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 				struct osc* osc = &k->oscs[j];
-				osc_set_output(k, osc, params, t);
+				osc_set_output(k, osc, &thread_param, t);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					// if( osc->output > 0.0f ) {
 					//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);

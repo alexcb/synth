@@ -56,6 +56,8 @@ class VoiceManager : public CMultiCoreSupport {
 	void wait_for_idle_cores();
 	void set_cores_busy();
 
+	float pitchwheel[CORES];
+
 	unsigned long tick;
 	float* m_fOutputLevel[CORES];
 	volatile TCoreStatus m_CoreStatus[CORES];

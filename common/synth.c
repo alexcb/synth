@@ -258,9 +258,9 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 
 	// TODO even after adding smoothing to the pitch value (in miniorgan.cpp), this is still glitchy
 	// instead it should only adjust the waveform relative to when the pitch was changed rather than relative to t=0
-	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m);
 
-	freq = exp2f(log2f(freq) + osc->detune);
+	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m + osc->detune);
+
 	if (osc->phase_input && osc->phase_input->wave_type) {
 		freq += osc->phase_input->output * osc->phase_input_m;
 	}

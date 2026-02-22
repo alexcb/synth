@@ -123,7 +123,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_nSampleCount(0)
     , m_nPrevFrequency(0)
     , m_bSetVolume(FALSE)
-    , m_nPitchBend(0)
+    , m_nPitchBend(0.f)
     , m_uchVolume(127)
     , m_modulation(0)
     , m_noise(0)
@@ -438,9 +438,10 @@ void CMiniOrgan::set_knobs()
 {
 
 	// range from 0.0 (never changes) to 1.0 (instant change)
-	const float freq_smoothing = 0.001f;
+	// const float freq_smoothing = 0.0001f;
+	// s_pThis->voice_manager.params->pitch = m_nPitchBend * freq_smoothing + s_pThis->voice_manager.params->pitch * (1.0f - freq_smoothing);
 
-	s_pThis->voice_manager.params->pitch = m_nPitchBend * freq_smoothing + s_pThis->voice_manager.params->pitch * (1.0f - freq_smoothing);
+	s_pThis->voice_manager.params->pitch = m_nPitchBend;
 }
 
 void CMiniOrgan::FillChunkBuff()
@@ -584,6 +585,7 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 		if (pPacket[1] == 0) {
 			unsigned pitch_bend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
 			s_pThis->m_nPitchBend = ((float)pitch_bend - 64.f) / 64.f;
+			// hackmsg.Format("pitch bend %u -> %f", pitch_bend, s_pThis->m_nPitchBend); // 0 -> -1, 64 -> 0, 127 -> 0.97
 		} else {
 			hackmsg.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
 		}
