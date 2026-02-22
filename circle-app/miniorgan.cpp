@@ -256,7 +256,7 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 		}
 	}
 
-	// set_knobs();
+	set_knobs();
 	FillChunkBuff();
 
 	if (m_pMIDIDevice != 0) {
@@ -434,10 +434,14 @@ unsigned CMiniOrgan::GetChunk(u32* pBuffer, unsigned nChunkSize)
 	return nChunkSize;
 }
 
-// void CMiniOrgan::set_knobs()
-//{
-//	voice_manager.params.
-// }
+void CMiniOrgan::set_knobs()
+{
+
+	// range from 0.0 (never changes) to 1.0 (instant change)
+	const float freq_smoothing = 0.001f;
+
+	s_pThis->voice_manager.params->pitch = m_nPitchBend * freq_smoothing + s_pThis->voice_manager.params->pitch * (1.0f - freq_smoothing);
+}
 
 void CMiniOrgan::FillChunkBuff()
 {
@@ -579,8 +583,7 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 	} else if (ucType == 14) {
 		if (pPacket[1] == 0) {
 			unsigned pitch_bend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
-			// s_pThis->m_nPitchBend = ((float)pitch_bend - 64.f) / 64.f;
-			s_pThis->voice_manager.params->pitch = ((float)pitch_bend - 64.f) / 64.f;
+			s_pThis->m_nPitchBend = ((float)pitch_bend - 64.f) / 64.f;
 		} else {
 			hackmsg.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
 		}

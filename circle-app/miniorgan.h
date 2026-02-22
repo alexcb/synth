@@ -84,6 +84,7 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	static void USBDeviceRemovedHandler(CDevice* pDevice, void* pContext);
 
+	void set_knobs();
 	void FillChunkBuff();
 
     private:

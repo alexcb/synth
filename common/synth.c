@@ -256,9 +256,8 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		return;
 	}
 
-	// TODO this produces crackles since the pitch value jumps too quickly
-	// we need to introduce freq smoothing; however the actual osc->freq value can't be changed
-	// since it's used for lookups
+	// TODO even after adding smoothing to the pitch value (in miniorgan.cpp), this is still glitchy
+	// instead it should only adjust the waveform relative to when the pitch was changed rather than relative to t=0
 	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m);
 
 	freq = exp2f(log2f(freq) + osc->detune);
