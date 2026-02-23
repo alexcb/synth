@@ -113,7 +113,9 @@ void VoiceManager::produce_keys(unsigned nCore)
 
 	struct params thread_param;
 
-	for (int chunk_i = 0; chunk_i < CHUNK_SIZE; chunk_i++) {
+	const float dt = 1.f / SAMPLE_RATE;
+
+	for (int chunk_i = 0; chunk_i < 1024; chunk_i++) {
 		float t = ((float)tick) / SAMPLE_RATE;
 		tick++;
 
@@ -145,7 +147,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 			bool done = true;
 			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 				struct osc* osc = &k->oscs[j];
-				osc_set_output(k, osc, &thread_param, t);
+				osc_set_output(k, osc, &thread_param, t, dt);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					// if( osc->output > 0.0f ) {
 					//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);

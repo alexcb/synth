@@ -39,6 +39,7 @@ void foo(char* p);
 
 struct osc {
 	float freq;
+	float wave_pos;
 	bool freq_sync;
 	float freq_m;
 	float detune;
@@ -84,7 +85,7 @@ struct params {
 int parse_wave_type(const char* s);
 int parse_osc(const char* s, int* osc_type, int* n);
 int load_patch(char* path, struct osc* oscs);
-void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t);
+void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t, float dt);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
 // TODO remove this

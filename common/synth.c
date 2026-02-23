@@ -243,7 +243,7 @@ int load_patch(char* src, struct osc* oscs)
 	return 0;
 }
 
-void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t)
+void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t, float dt)
 {
 	if (osc->wave_type == WAVE_TYPE_NONE) {
 		assert(osc->output == 0.0f);
@@ -265,32 +265,31 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		freq += osc->phase_input->output * osc->phase_input_m;
 	}
 
-	float period = 1.0 / freq;
-	float tt = fmod(t, period);
+	osc->wave_pos = fmod(osc->wave_pos + dt * freq, 1.f);
 
 	switch (osc->wave_type) {
 
 	case WAVE_TYPE_TRIANGLE: {
-		if (tt < period / 2.0) {
-			osc->output = -1.0 + (2.0 * tt * 2) / period;
+		if (osc->wave_pos < 0.5f) {
+			osc->output = -1.0 + (4.0 * osc->wave_pos);
 		} else {
-			osc->output = 1.0 - (2.0 * (tt * 2 - period)) / period;
+			osc->output = 1.0 - (2.0 * (osc->wave_pos * 2.f - 1.f));
 		}
 		break;
 	}
 
 	case WAVE_TYPE_SAW_UP: {
-		osc->output = -1.0 + (2.0 * tt) / period;
+		osc->output = -1.0 + (2.0 * osc->wave_pos);
 		break;
 	}
 
 	case WAVE_TYPE_SAW_DOWN: {
-		osc->output = 1.0 - (2.0 * tt) / period;
+		osc->output = 1.0 - (2.0 * osc->wave_pos);
 		break;
 	}
 
 	case WAVE_TYPE_SINE: {
-		int i = (tt * SINE_POINTS) / period;
+		int i = (osc->wave_pos * SINE_POINTS);
 		if (i > SINE_POINTS || i < 0) {
 			i = 0;
 		}
@@ -299,7 +298,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 
 	case WAVE_TYPE_SQUARE: {
-		if (tt < period / 2.0) {
+		if (osc->wave_pos < 0.5f) {
 			osc->output = 1.0;
 		} else {
 			osc->output = -1.0;
@@ -308,7 +307,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 
 	case WAVE_TYPE_PULSE12: {
-		if (tt < period / 8.0) {
+		if (osc->wave_pos < 0.125f) {
 			osc->output = 1.0;
 		} else {
 			osc->output = -1.0;
@@ -317,7 +316,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 
 	case WAVE_TYPE_PULSE25: {
-		if (tt < period / 4.0) {
+		if (osc->wave_pos < 0.25f) {
 			osc->output = 1.0;
 		} else {
 			osc->output = -1.0;
