@@ -110,7 +110,7 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	boolean m_bSetVolume;
 	u8 m_uchVolume;
-	u8 m_modulation;
+	float m_modulation;
 	u8 m_noise;
 	u8 m_detune;
 

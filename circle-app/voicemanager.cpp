@@ -129,7 +129,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 		// }
 		// thread_param.pitch = pitchwheel[nCore];
 
-		const float tolerance = 1e-2f;
+		const float tolerance = 1e-2f; // TODO change this to 1e6 (to effectively disable it) and see if this slow ramp up time is actually needed
 		const float delta = tolerance / 2.f;
 		const float diff = pitchwheel[nCore] - params->pitch;
 		if (diff > tolerance) {
@@ -147,7 +147,11 @@ void VoiceManager::produce_keys(unsigned nCore)
 			bool done = true;
 			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 				struct osc* osc = &k->oscs[j];
-				osc_set_output(k, osc, &thread_param, t, dt);
+				
+				// TODO maybe I can deleted all this moving average code now?
+				// osc_set_output(k, osc, &thread_param, t, dt);
+				
+				osc_set_output(k, osc, params, t, dt);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					// if( osc->output > 0.0f ) {
 					//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);

@@ -1,10 +1,10 @@
-[vfo1]
-type=pulse12
-output=0.3
-attack=0.03
-decay=0.2
-sustain=0.0
-release=0.0
+# [vfo1]
+# type=pulse12
+# output=0.3
+# attack=0.03
+# decay=0.2
+# sustain=0.0
+# release=0.0
 
 [vfo2]
 type=sine
@@ -26,8 +26,10 @@ amp_input=lfo1
 amp_input_m=1.0
 
 [lfo1]
-type=triangle
-freq=0.3
+type=square
+freq=1.0
+mod_freq_m=3.0
+# pitch_m=10.0
 
 
 # [vfo3]

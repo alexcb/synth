@@ -139,6 +139,7 @@ int load_patch(char* src, struct osc* oscs)
 		}
 		n = strlen(buffer);
 		if (buffer[0] == '#') {
+			// TODO something here isn't working; because I had to change the encode_patch.py script to ignore these lines, and then the sound changed
 			continue;
 		}
 		for (int j = n - 1; j >= 0; j--) {
@@ -235,6 +236,10 @@ int load_patch(char* src, struct osc* oscs)
 			osc->release = atof(v);
 		} else if (strcmp(buffer, "pitch_m") == 0) {
 			osc->pitch_m = atof(v);
+		} else if (strcmp(buffer, "mod_freq_m") == 0) {
+			osc->mod_freq_m = atof(v);
+		} else if (strcmp(buffer, "mod_output_m") == 0) {
+			osc->mod_output_m = atof(v);
 		} else {
 			// printf("unhandled line %s\n", buffer);
 		}
@@ -256,10 +261,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		return;
 	}
 
-	// TODO even after adding smoothing to the pitch value (in miniorgan.cpp), this is still glitchy
-	// instead it should only adjust the waveform relative to when the pitch was changed rather than relative to t=0
-
-	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m + osc->detune);
+	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m + params->mod * osc->mod_freq_m + osc->detune);
 
 	if (osc->phase_input && osc->phase_input->wave_type) {
 		freq += osc->phase_input->output * osc->phase_input_m;
@@ -332,6 +334,10 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 
 	if (osc->amp_input && osc->amp_input->wave_type) {
 		osc->output *= (osc->amp_input->output + 1.0) / 2.0 * osc->amp_input_m;
+	}
+
+	if( osc->mod_output_m > 0.0f ) {
+		osc->output *= osc->mod_output_m * params->mod;
 	}
 
 	if (osc->output > 1.0) {

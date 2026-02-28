@@ -125,7 +125,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_bSetVolume(FALSE)
     , m_nPitchBend(0.f)
     , m_uchVolume(127)
-    , m_modulation(0)
+    , m_modulation(0.f)
     , m_noise(0)
     , m_detune(0)
 {
@@ -442,6 +442,7 @@ void CMiniOrgan::set_knobs()
 	// s_pThis->voice_manager.params->pitch = m_nPitchBend * freq_smoothing + s_pThis->voice_manager.params->pitch * (1.0f - freq_smoothing);
 
 	s_pThis->voice_manager.params->pitch = m_nPitchBend;
+	s_pThis->voice_manager.params->mod = m_modulation;
 }
 
 void CMiniOrgan::FillChunkBuff()
@@ -566,7 +567,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			s_pThis->m_bSetVolume = TRUE;
 		} else if (pPacket[1] == 1) {
 			// modulation
-			s_pThis->m_modulation = pPacket[2];
+			s_pThis->m_modulation = (float)pPacket[2] / 127.f; // 0.0 to 1.0
+			//hackmsg.Format("mod set to %f", s_pThis->m_modulation);
 		} else if (pPacket[1] == 74) {
 			// c1 dial
 			s_pThis->m_noise = pPacket[2];

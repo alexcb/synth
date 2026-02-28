@@ -55,6 +55,8 @@ struct osc {
 	float sustain; // level ranging from 0 to 1
 	float release; // time from sustain level to 0
 	float pitch_m; // if set, multiply pitch bend by this amount
+	float mod_freq_m; // if set, multiply modulation by this amount and apply it to the freq
+	float mod_output_m; // if set, multiply modulation by this amount and apply it to volume output
 
 	// internal values
 	// float pressed_at; // TODO remove these
