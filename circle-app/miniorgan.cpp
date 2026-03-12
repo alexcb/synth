@@ -197,7 +197,7 @@ boolean CMiniOrgan::Initialize(void)
 	// TODO error checking
 	voice_manager.Initialize(keys);
 
-	if (m_Serial.Initialize(31250)) {
+	if (m_Serial.Initialize(115200)) {
 		m_bUseSerial = TRUE;
 
 		return TRUE;
@@ -230,6 +230,15 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 			ignore_underruns = 10000;
 		}
 		num_underruns = 0;
+	}
+
+	CString tmp;
+	u8 Buffer[20];
+	int nResult = m_Serial.Read(Buffer, 19);
+	if( nResult > 0 ) {
+		Buffer[nResult] = '\0';
+		tmp.Format("got data: %s", Buffer);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 	}
 
 	// The sound controller is callable from TASK_LEVEL only. That's why we must do
@@ -293,19 +302,23 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 	}
 
 	if (!m_bUseSerial) {
-		// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "return here5");
+		u8 Buffer[20];
+		int nResult = m_Serial.Read(Buffer, sizeof Buffer);
+		tmp.Format("got %d bytes here2", nResult);
+		hackmsg.Append(tmp);
+
 		return;
 	}
 
 	// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "here0");
 
 	// Read serial MIDI data
-	u8 Buffer[20];
-	int nResult = m_Serial.Read(Buffer, sizeof Buffer);
+	nResult = m_Serial.Read(Buffer, sizeof Buffer);
 	if (nResult <= 0) {
 		return;
 	}
-	// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "here1");
+	tmp.Format("got %d bytes here1", nResult);
+	hackmsg.Append(tmp);
 
 	// Process MIDI messages
 	// See: https://www.midi.org/specifications/item/table-1-summary-of-midi-message
