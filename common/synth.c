@@ -327,7 +327,8 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 
 	case WAVE_TYPE_RAND: {
-		osc->output = bad_normalf();
+		// osc->output = bad_normalf();
+		osc->output = bad_randf();
 		break;
 	}
 	}

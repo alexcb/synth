@@ -17,3 +17,13 @@ float bad_normalf()
 {
 	return bad_normal(2000) / 1000.f - 1000.f;
 }
+
+// returns a random float between 0 and 1
+float bad_randf()
+{
+	float f = (float) bad_rand() / 0xFFFFFFFF;
+	if( f > 1.0f ) {
+		f = 1.0f;
+	}
+	return f;
+}

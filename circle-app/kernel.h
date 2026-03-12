@@ -33,6 +33,8 @@
 #include <circle/types.h>
 #include <circle/usb/usbcontroller.h>
 
+// #include <circle/usb/usbhcidevice.h>
+
 enum TShutdownMode {
 	ShutdownNone,
 	ShutdownHalt,
@@ -54,12 +56,22 @@ class CKernel {
 	CKernelOptions m_Options;
 	CDeviceNameService m_DeviceNameService;
 	CScreenDevice m_Screen;
+	// CSerialDevice		m_Serial;
 	CExceptionHandler m_ExceptionHandler;
 	CInterruptSystem m_Interrupt;
 	CTimer m_Timer;
 	CLogger m_Logger;
 	CI2CMaster m_I2CMaster;
 	CUSBController* m_pUSB;
+
+	// for ethernet
+//#if RASPPI <= 3
+//	CUSBHCIDevice		m_USBHCI;
+//#elif RASPPI == 4
+//	CBcm54213Device		m_Bcm54213;
+//#else
+//	CMACBDevice		m_MACB;
+//#endif
 
 	CMiniOrgan* m_pMiniOrgan;
 };

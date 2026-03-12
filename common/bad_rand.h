@@ -14,6 +14,9 @@ uint32_t bad_normal(uint32_t n);
 // returns a random float between -1 and 1, normally centered around 0
 float bad_normalf();
 
+// returns a random, uniform, float between 0.0 and 1.0
+float bad_randf();
+
 #ifdef __cplusplus
 }
 #endif

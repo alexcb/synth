@@ -24,6 +24,10 @@
 #include <circle/usb/gadget/usbmidigadget.h>
 #include <circle/usb/usbhcidevice.h>
 
+// #include <circle/netdevice.h>
+// #include <circle/macaddress.h>
+
+
 // #define USB_GADGET_MODE
 
 static const char FromKernel[] = "kernel";
@@ -41,6 +45,10 @@ CKernel::CKernel(void)
     m_pUSB(new CUSBMIDIGadget(&m_Interrupt))
     ,
 #endif
+//#if RASPPI <= 3
+//	m_USBHCI (&m_Interrupt, &m_Timer)
+//	,
+//#endif
     m_pMiniOrgan(0)
 {
 	m_ActLED.Blink(5); // show we are alive
@@ -58,6 +66,11 @@ boolean CKernel::Initialize(void)
 		bOK = m_Screen.Initialize();
 	}
 
+	// if (bOK)
+	// {
+	// 	bOK = m_Serial.Initialize (115200);
+	// }
+
 	if (bOK) {
 		bOK = m_Logger.Initialize(&m_Screen);
 	}
@@ -70,6 +83,17 @@ boolean CKernel::Initialize(void)
 		bOK = m_Timer.Initialize();
 	}
 
+	if (bOK)
+	{
+//#if RASPPI <= 3
+//		bOK = m_USBHCI.Initialize ();
+//#elif RASPPI == 4
+//		bOK = m_Bcm54213.Initialize ();
+//#else
+//		bOK = m_MACB.Initialize ();
+//#endif
+	}
+
 	if (bOK) {
 		bOK = m_I2CMaster.Initialize();
 	}
@@ -78,6 +102,7 @@ boolean CKernel::Initialize(void)
 		assert(m_pUSB);
 		bOK = m_pUSB->Initialize();
 	}
+
 
 	if (bOK) {
 		m_pMiniOrgan = new CMiniOrgan(&m_Interrupt, &m_I2CMaster);
@@ -98,10 +123,57 @@ TShutdownMode CKernel::Run(void)
 	m_pMiniOrgan->Start();
 	m_Logger.Write(FromKernel, LogNotice, "calling start done");
 
+	// TODO: add ehternet flag to diable
+	// CNetDevice *pEth0 = CNetDevice::GetNetDevice (0);
+	// if (pEth0 == 0)
+	// {
+	// 	m_Logger.Write (FromKernel, LogError, "Net device not found");
+	// 	return ShutdownHalt;
+	// }
+
 	for (unsigned nCount = 0; m_pMiniOrgan->IsActive(); nCount++) {
 		// This must be called from TASK_LEVEL to update the tree of connected USB devices.
 		assert(m_pUSB);
 		boolean bUpdated = m_pUSB->UpdatePlugAndPlay();
+
+		// ethernet
+		///if( pEth0->IsLinkUp () && pEth0->UpdatePHY () ) {
+
+		///DMA_BUFFER (u8, FrameBuffer, FRAME_BUFFER_SIZE);
+		///unsigned nFrameLength;
+
+		///if (pEth0->ReceiveFrame (FrameBuffer, &nFrameLength))
+		///{
+		///	CString Sender ("???");
+		///	CString Protocol ("???");
+
+		///	if (nFrameLength >= 14)
+		///	{
+		///		CMACAddress MACSender (FrameBuffer+6);
+		///		MACSender.Format (&Sender);
+
+		///		unsigned nProtocol = *(unsigned short *) (FrameBuffer+12);
+		///		switch (nProtocol)
+		///		{
+		///		case BE (0x800):
+		///			Protocol = "IP";
+		///			break;
+
+		///		case BE (0x806):
+		///			Protocol = "ARP";
+		///			break;
+
+		///		default:
+		///			break;
+		///		}
+		///	}
+
+		///	m_Logger.Write (FromKernel, LogNotice,
+		///			"%u bytes received from %s (protocol %s)", nFrameLength,
+		///			(const char *) Sender, (const char *) Protocol);
+		///}
+		///}
+
 
 		// m_Logger.Write (FromKernel, LogNotice, "loop %u", nCount);
 		m_pMiniOrgan->Process(bUpdated);

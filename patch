@@ -13,23 +13,29 @@ attack=0.2
 release=0.8
 sustain=0.4
 decay=0.2
-pitch_m=1.0
+phase_input=lfo1
+phase_input_m=10.0
 
-[vfo3]
-type=square
-output=0.4
-attack=0.2
-release=0.8
-sustain=0.4
-decay=0.2
-amp_input=lfo1
-amp_input_m=1.0
+# [vfo3]
+# type=square
+# output=0.4
+# attack=0.2
+# release=0.8
+# sustain=0.4
+# decay=0.2
+# amp_input=lfo1
+# amp_input_m=1.0
 
 [lfo1]
-type=square
+type=triangle
 freq=1.0
-mod_freq_m=3.0
-# pitch_m=10.0
+mod_output_m=1.0
+phase_input=lfo2
+phase_input_m=1.0
+
+[lfo2]
+type=random
+freq=1.0
 
 
 # [vfo3]
