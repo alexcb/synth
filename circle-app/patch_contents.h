@@ -1,7 +1,7 @@
 char patch_contents[] = ""
 "\n"
 "[vfo2]\n"
-"type=sine\n"
+"type=square\n"
 "output=1.0\n"
 "attack=0.2\n"
 "release=0.8\n"

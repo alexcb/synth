@@ -7,7 +7,7 @@
 # release=0.0
 
 [vfo2]
-type=sine
+type=random
 output=1.0
 attack=0.2
 release=0.8

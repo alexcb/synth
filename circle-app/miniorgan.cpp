@@ -165,31 +165,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 		memset(keys[i].oscs, 0, osc_bytes);
 	}
 
-	int n = strlen(patch_contents);
-	char* patch_contents_copy = static_cast<char*>(::operator new(n + 1));
-
-	for (size_t i = 0; i < MAX_KEYS; i++) {
-		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
-		hackmsg.Append(tmp);
-		strcpy(patch_contents_copy, patch_contents);
-		if (load_patch(patch_contents_copy, keys[i].oscs) != 0) {
-			tmp.Format("loading patch for key %p failed;", &keys[i]);
-			hackmsg.Append(tmp);
-		}
-	}
-
-	int osc_i = osc_num_to_index(1, OSC_TYPE_LFO);
-
-	// hackmsg.Format("sizeof(struct osc)=%d; numkeys=%d; osc_i=%d; NUM_OSCS=%d; ", sizeof(struct osc), MAX_KEYS, osc_i, NUM_OSCS); // 96 bytes
-	for (int i = 0; i < MAX_KEYS; i++) {
-		for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
-			struct osc* osc = &keys[i].oscs[j];
-			if (osc->osc_type == OSC_TYPE_VFO) {
-				tmp.Format("%d,%d is VFO type; ", i, j);
-				hackmsg.Append(tmp);
-			}
-		}
-	}
+	LoadPatch(patch_contents);
 
        serial_buffer = new u8[SERIAL_BUFFER_SIZE];
        serial_buffer_len = 0;
@@ -216,6 +192,41 @@ boolean CMiniOrgan::Initialize(void)
 	}
 
 	return FALSE;
+}
+
+void CMiniOrgan::LoadPatch(const char *patch)
+{
+
+	// TODO I need to clear everything out before re-loading it here
+
+	CString tmp;
+	int n = strlen(patch);
+	char* patch_contents_copy = static_cast<char*>(::operator new(n + 1));
+
+	for (size_t i = 0; i < MAX_KEYS; i++) {
+		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
+		hackmsg.Append(tmp);
+		strcpy(patch_contents_copy, patch);
+		if (load_patch(patch_contents_copy, keys[i].oscs) != 0) {
+			tmp.Format("loading patch for key %p failed;", &keys[i]);
+			hackmsg.Append(tmp);
+		}
+	}
+
+	int osc_i = osc_num_to_index(1, OSC_TYPE_LFO);
+
+	// hackmsg.Format("sizeof(struct osc)=%d; numkeys=%d; osc_i=%d; NUM_OSCS=%d; ", sizeof(struct osc), MAX_KEYS, osc_i, NUM_OSCS); // 96 bytes
+	for (int i = 0; i < MAX_KEYS; i++) {
+		for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
+			struct osc* osc = &keys[i].oscs[j];
+			if (osc->osc_type == OSC_TYPE_VFO) {
+				tmp.Format("%d,%d is VFO type; ", i, j);
+				hackmsg.Append(tmp);
+			}
+		}
+	}
+
+	delete patch_contents_copy;
 }
 
 void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
@@ -460,6 +471,8 @@ void CMiniOrgan::CheckSerialForUpdates()
 
 		if( calculated_crc == serial_buffer_expected_crc ) {
 			tmp.Format("got all %d bytes; and the crc matches", serial_buffer_expected_payload);
+			serial_buffer[serial_buffer_expected_payload] = 0; // TODO potential +1 buffer overflow
+			LoadPatch((const char*)serial_buffer);
 		} else {
 			int crc = serial_buffer_expected_crc;
 			tmp.Format("got all %d bytes; calculated crc is %d but expect %d", serial_buffer_expected_payload, crc2, crc);

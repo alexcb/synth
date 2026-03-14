@@ -87,6 +87,7 @@ class CMiniOrgan : public SOUND_CLASS {
 	void set_knobs();
 	void FillChunkBuff();
 	void CheckSerialForUpdates();
+	void LoadPatch(const char *s);
 
 	       u8 *serial_buffer;
        int serial_buffer_len;
