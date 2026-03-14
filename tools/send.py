@@ -1,5 +1,8 @@
 import serial
 import time
+import sys
+
+data_to_send = open(sys.argv[1]).read().encode('ascii')
 
 # Configure the serial port settings
 # Replace '/dev/ttyUSB0' with your actual port name
@@ -13,18 +16,19 @@ try:
     print(f"Port {ser.name} opened successfully.")
 
     # Give the connection a moment to establish
-    time.sleep(0.2)
+    time.sleep(1.0)
 
     # The string to send
-    string_to_send = "Hello, World!"
+    # string_to_send = "Hello, World!"
 
-    # Encode the string to bytes (UTF-8 or ASCII are common encodings)
-    # The `b` prefix can also be used for a simple byte string: ser.write(b'hello')
-    bytes_to_send = string_to_send.encode('ascii')
+    # # Encode the string to bytes (UTF-8 or ASCII are common encodings)
+    # # The `b` prefix can also be used for a simple byte string: ser.write(b'hello')
+    # bytes_to_send = string_to_send.encode('ascii')
 
     # Write the bytes to the serial port
-    ser.write(bytes_to_send)
-    print(f"Sent: {string_to_send!r}")
+    ser.write('here-comes-a-new-patch'.encode('ascii'))
+    ser.write(data_to_send)
+    ser.write('end-of-patch'.encode('ascii'))
 
     # Optional: Read response (if the connected device sends one back)
     # line = ser.readline().decode('utf-8').strip()

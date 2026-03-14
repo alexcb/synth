@@ -86,6 +86,11 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	void set_knobs();
 	void FillChunkBuff();
+	void CheckSerialForUpdates();
+
+	       u8 *serial_buffer;
+       int serial_buffer_len;
+
 
     private:
 	CUSBMIDIDevice* volatile m_pMIDIDevice;

@@ -77,6 +77,8 @@ const TNoteInfo CMiniOrgan::s_Keys[] = {
 	{ 'Z', 60 } // C3
 };
 
+#define SERIAL_BUFFER_SIZE 1024*100
+
 #define RAND_MAX 32767
 
 static inline int rand_r(unsigned* pSeed)
@@ -182,6 +184,10 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 			}
 		}
 	}
+
+       serial_buffer = new u8[SERIAL_BUFFER_SIZE];
+       serial_buffer_len = 0;
+
 }
 
 CMiniOrgan::~CMiniOrgan(void)
@@ -232,14 +238,7 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 		num_underruns = 0;
 	}
 
-	CString tmp;
-	u8 Buffer[20];
-	int nResult = m_Serial.Read(Buffer, 19);
-	if( nResult > 0 ) {
-		Buffer[nResult] = '\0';
-		tmp.Format("got data: %s", Buffer);
-		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
-	}
+	CheckSerialForUpdates();
 
 	// The sound controller is callable from TASK_LEVEL only. That's why we must do
 	// this here and not in MIDIPacketHandler(), which is called from IRQ_LEVEL too.
@@ -300,127 +299,7 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 			return;
 		}
 	}
-
-	if (!m_bUseSerial) {
-		u8 Buffer[20];
-		int nResult = m_Serial.Read(Buffer, sizeof Buffer);
-		tmp.Format("got %d bytes here2", nResult);
-		hackmsg.Append(tmp);
-
-		return;
-	}
-
-	// CLogger::Get ()->Write (FromMiniOrgan, LogNotice, "here0");
-
-	// Read serial MIDI data
-	nResult = m_Serial.Read(Buffer, sizeof Buffer);
-	if (nResult <= 0) {
-		return;
-	}
-	tmp.Format("got %d bytes here1", nResult);
-	hackmsg.Append(tmp);
-
-	// Process MIDI messages
-	// See: https://www.midi.org/specifications/item/table-1-summary-of-midi-message
-	for (int i = 0; i < nResult; i++) {
-		u8 uchData = Buffer[i];
-
-		switch (m_nSerialState) {
-		case 0:
-		MIDIRestart:
-			if ((uchData & 0xE0) == 0x80 // Note on or off, all channels
-			    || (uchData & 0xF0) == 0xB0) // MIDI CC, all channels
-			{
-				m_SerialMessage[m_nSerialState++] = uchData;
-			}
-			break;
-
-		case 1:
-		case 2:
-			if (uchData & 0x80) // got status when parameter expected
-			{
-				m_nSerialState = 0;
-
-				goto MIDIRestart;
-			}
-
-			m_SerialMessage[m_nSerialState++] = uchData;
-
-			if (m_nSerialState == 3) // message is complete
-			{
-				MIDIPacketHandler(0, m_SerialMessage, sizeof m_SerialMessage);
-
-				m_nSerialState = 0;
-			}
-			break;
-
-		default:
-			assert(0);
-			break;
-		}
-	}
 }
-
-#ifdef USE_USB
-
-unsigned CMiniOrgan::GetChunk(s16* pBuffer, unsigned nChunkSize)
-{
-	unsigned nChannels = GetHWTXChannels();
-	unsigned nResult = nChunkSize;
-
-	this_code_is_only_used_when_USE_USB_is_defined(); // I think that means a USB soundcard
-
-	dontcallthisok();
-
-	//// reset sample counter if key has changed
-	// if (m_nFrequency != m_nPrevFrequency)
-	//{
-	//	m_nSampleCount = 0;
-
-	//	m_nPrevFrequency = m_nFrequency;
-	//}
-
-	//// output level has to be changed on every nSampleDelay'th sample (if key is pressed)
-	// unsigned nSampleDelay = 0;
-	// if (m_nFrequency != 0)
-	//{
-	//	nSampleDelay = (SAMPLE_RATE/2 + m_nFrequency/2) / m_nFrequency;
-	// }
-
-	// for (; nChunkSize > 0; nChunkSize -= nChannels)		// fill the whole buffer
-	//{
-	//	s16 nSample = (s16) m_nNullLevel;
-
-	//	if (m_nFrequency != 0)			// key pressed?
-	//	{
-	//		// change output level if required to generate a square wave
-	//		if (++m_nSampleCount >= nSampleDelay)
-	//		{
-	//			m_nSampleCount = 0;
-
-	//			if (m_nCurrentLevel < m_nHighLevel)
-	//			{
-	//				m_nCurrentLevel = m_nHighLevel;
-	//			}
-	//			else
-	//			{
-	//				m_nCurrentLevel = m_nLowLevel;
-	//			}
-	//		}
-
-	//		nSample = (s16) m_nCurrentLevel;
-	//	}
-
-	//	for (unsigned i = 0; i < nChannels; i++)
-	//	{
-	//		*pBuffer++ = nSample;
-	//	}
-	//}
-
-	return nResult;
-}
-
-#endif
 
 unsigned CMiniOrgan::GetChunk(u32* pBuffer, unsigned nChunkSize)
 {
@@ -497,6 +376,36 @@ void CMiniOrgan::FillChunkBuff()
 
 	chunk_ready = 1;
 }
+
+void CMiniOrgan::CheckSerialForUpdates()
+{
+
+	CString tmp;
+	int nResult = m_Serial.Read(serial_buffer, 19);
+	if( nResult > 0 ) {
+		serial_buffer[nResult] = '\0';
+		tmp.Format("got data: %s", serial_buffer);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+	}
+	//
+       //CString tmp;
+       //u8 Buffer[1024];
+       //int maxRead = SERIAL_BUFFER_SIZE - serial_buffer_len;
+       //if( maxRead > 1024 ) {
+       //        maxRead = 1024;
+       //}
+       //int nResult = m_Serial.Read(serial_buffer, maxRead);
+       //if( nResult > 0 ) {
+       //        //char *patch_start = strstr(serial_buffer, "here-comes-a-new-patch");
+       //        serial_buffer[nResult] = '\0';
+       //        tmp.Format("got data: %s", serial_buffer);
+       //        CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+       //} else {
+       //        tmp.Format("got n=%d", nResult);
+       //        CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+       //}
+}
+
 
 void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLength)
 {
