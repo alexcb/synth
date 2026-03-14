@@ -90,6 +90,11 @@ class CMiniOrgan : public SOUND_CLASS {
 
 	       u8 *serial_buffer;
        int serial_buffer_len;
+	   int serial_buffer_state;
+	   u16 serial_buffer_expected_payload;
+	   u32 serial_buffer_expected_crc;
+
+
 
 
     private:

@@ -25,6 +25,7 @@
 #include <circle/util.h>
 
 #include <circle/string.h>
+#include <circle/startup.h>
 
 #include "../common/synth.h"
 #include "patch_contents.h"
@@ -79,6 +80,10 @@ const TNoteInfo CMiniOrgan::s_Keys[] = {
 
 #define SERIAL_BUFFER_SIZE 1024*100
 
+#define SERIAL_BUFFER_STATE_INIT 0
+#define SERIAL_BUFFER_STATE_NEW_PACKET 1
+#define SERIAL_BUFFER_STATE_PAYLOAD 2
+
 #define RAND_MAX 32767
 
 static inline int rand_r(unsigned* pSeed)
@@ -130,6 +135,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_modulation(0.f)
     , m_noise(0)
     , m_detune(0)
+	, serial_buffer_state(0)
 {
 	s_pThis = this;
 
@@ -377,33 +383,93 @@ void CMiniOrgan::FillChunkBuff()
 	chunk_ready = 1;
 }
 
+// Note that circle comes with ether_crc; which also includes the bits
+// this function only does the first half, so it matches python's zlib.crc32 function
+u32 crc(size_t ulLength, const u8 *pData)
+{
+   u32 nCRC = ~0;
+   while (ulLength--)
+   {
+      nCRC ^= *pData++;
+
+      for (unsigned i = 0; i < 8; i++)
+      {
+         nCRC = (nCRC >> 1) ^ ((nCRC & 1) ? 0xEDB88320 : 0);
+      }
+   }
+   return ~nCRC;
+}
+
+
 void CMiniOrgan::CheckSerialForUpdates()
 {
 
 	CString tmp;
-	int nResult = m_Serial.Read(serial_buffer, 19);
-	if( nResult > 0 ) {
-		serial_buffer[nResult] = '\0';
-		tmp.Format("got data: %s", serial_buffer);
+
+       int maxRead = SERIAL_BUFFER_SIZE - serial_buffer_len;
+       if( maxRead > 1024 ) {
+               maxRead = 1024;
+       }
+
+	int nResult = m_Serial.Read(serial_buffer+serial_buffer_len, maxRead);
+	if( nResult == 0 ) {
+		return;
+	}
+	if( nResult < 0 ) {
+		tmp.Format("serial read returned error: %d", nResult);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+		return;
+	}
+
+	serial_buffer_len += nResult;
+
+	const char* reboot_magic_string = "magic-reboot-string-omg";
+	if( memmem(serial_buffer, serial_buffer_len, reboot_magic_string, strlen(reboot_magic_string)) ) {
+		tmp.Format("found a reboot");
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+		reboot();
+		assert(0); // should never get here
+	}
+
+	const char* packet_magic_header = "here-comes-a-new-patch";
+	u8 *packet_start = (u8*) memmem(serial_buffer, serial_buffer_len, packet_magic_header, strlen(packet_magic_header));
+	if( packet_start ) {
+		size_t payload_start_offset = (packet_start - serial_buffer) + (size_t) strlen(packet_magic_header);
+		memmove(serial_buffer, serial_buffer+payload_start_offset, serial_buffer_len-payload_start_offset);
+		serial_buffer_len -= payload_start_offset;
+		serial_buffer_state = SERIAL_BUFFER_STATE_NEW_PACKET;
+		tmp.Format("packet found; remaining bytes in buffer: %d", serial_buffer_len);
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 	}
-	//
-       //CString tmp;
-       //u8 Buffer[1024];
-       //int maxRead = SERIAL_BUFFER_SIZE - serial_buffer_len;
-       //if( maxRead > 1024 ) {
-       //        maxRead = 1024;
-       //}
-       //int nResult = m_Serial.Read(serial_buffer, maxRead);
-       //if( nResult > 0 ) {
-       //        //char *patch_start = strstr(serial_buffer, "here-comes-a-new-patch");
-       //        serial_buffer[nResult] = '\0';
-       //        tmp.Format("got data: %s", serial_buffer);
-       //        CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
-       //} else {
-       //        tmp.Format("got n=%d", nResult);
-       //        CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
-       //}
+
+	if( serial_buffer_state == SERIAL_BUFFER_STATE_NEW_PACKET && serial_buffer_len >= 6 ) {
+		serial_buffer_expected_payload = ((u16*)serial_buffer)[0];
+		serial_buffer_expected_crc = ((u32*)(serial_buffer+sizeof(u16)))[0];
+		serial_buffer_state = SERIAL_BUFFER_STATE_PAYLOAD;
+		memmove(serial_buffer, serial_buffer+6, serial_buffer_len-6);
+		serial_buffer_len -= 6;
+
+		tmp.Format("header found expected size=%d crc=%d; remaining bytes in buffer: %d", serial_buffer_expected_payload, serial_buffer_expected_crc, serial_buffer_len);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+	}
+
+	if( serial_buffer_state == SERIAL_BUFFER_STATE_PAYLOAD && serial_buffer_len >= serial_buffer_expected_payload ) {
+
+		u32 calculated_crc = crc(serial_buffer_expected_payload, serial_buffer);
+		int crc2 = calculated_crc;
+
+		if( calculated_crc == serial_buffer_expected_crc ) {
+			tmp.Format("got all %d bytes; and the crc matches", serial_buffer_expected_payload);
+		} else {
+			int crc = serial_buffer_expected_crc;
+			tmp.Format("got all %d bytes; calculated crc is %d but expect %d", serial_buffer_expected_payload, crc2, crc);
+		}
+
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+		// TODO load the patch
+		serial_buffer_state = SERIAL_BUFFER_STATE_INIT;
+		serial_buffer_len = 0;
+	}
 }
 
 

@@ -1,8 +1,16 @@
 import serial
 import time
 import sys
+import zlib
 
-data_to_send = open(sys.argv[1]).read().encode('ascii')
+reboot = False
+path = sys.argv[1]
+if path == "reboot":
+    reboot = True
+else:
+    data_to_send = open(path).read().encode('ascii')
+    crc = zlib.crc32(data_to_send) & 0xffffffff
+    print(f'patch size is {len(data_to_send)}; crc is {crc}')
 
 # Configure the serial port settings
 # Replace '/dev/ttyUSB0' with your actual port name
@@ -16,24 +24,15 @@ try:
     print(f"Port {ser.name} opened successfully.")
 
     # Give the connection a moment to establish
-    time.sleep(1.0)
+    time.sleep(0.2)
 
-    # The string to send
-    # string_to_send = "Hello, World!"
-
-    # # Encode the string to bytes (UTF-8 or ASCII are common encodings)
-    # # The `b` prefix can also be used for a simple byte string: ser.write(b'hello')
-    # bytes_to_send = string_to_send.encode('ascii')
-
-    # Write the bytes to the serial port
-    ser.write('here-comes-a-new-patch'.encode('ascii'))
-    ser.write(data_to_send)
-    ser.write('end-of-patch'.encode('ascii'))
-
-    # Optional: Read response (if the connected device sends one back)
-    # line = ser.readline().decode('utf-8').strip()
-    # if line:
-    #     print(f"Received: {line!r}")
+    if reboot:
+        ser.write('magic-reboot-string-omg'.encode('ascii'))
+    else:
+        ser.write('here-comes-a-new-patch'.encode('ascii'))
+        ser.write(len(data_to_send).to_bytes(2, byteorder='little'))
+        ser.write(crc.to_bytes(4, byteorder='little'))
+        ser.write(data_to_send)
 
 except serial.SerialException as e:
     print(f"Error opening serial port: {e}")
