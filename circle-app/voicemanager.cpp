@@ -147,10 +147,10 @@ void VoiceManager::produce_keys(unsigned nCore)
 			bool done = true;
 			for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 				struct osc* osc = &k->oscs[j];
-				
+
 				// TODO maybe I can deleted all this moving average code now?
 				// osc_set_output(k, osc, &thread_param, t, dt);
-				
+
 				osc_set_output(k, osc, params, t, dt);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					// if( osc->output > 0.0f ) {

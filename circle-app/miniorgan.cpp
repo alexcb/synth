@@ -24,8 +24,8 @@
 #include <circle/sysconfig.h>
 #include <circle/util.h>
 
-#include <circle/string.h>
 #include <circle/startup.h>
+#include <circle/string.h>
 
 #include "../common/synth.h"
 #include "patch_contents.h"
@@ -78,7 +78,7 @@ const TNoteInfo CMiniOrgan::s_Keys[] = {
 	{ 'Z', 60 } // C3
 };
 
-#define SERIAL_BUFFER_SIZE 1024*100
+#define SERIAL_BUFFER_SIZE 1024 * 100
 
 #define SERIAL_BUFFER_STATE_INIT 0
 #define SERIAL_BUFFER_STATE_NEW_PACKET 1
@@ -135,7 +135,7 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_modulation(0.f)
     , m_noise(0)
     , m_detune(0)
-	, serial_buffer_state(0)
+    , serial_buffer_state(0)
 {
 	s_pThis = this;
 
@@ -167,9 +167,8 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 
 	LoadPatch(patch_contents);
 
-       serial_buffer = new u8[SERIAL_BUFFER_SIZE];
-       serial_buffer_len = 0;
-
+	serial_buffer = new u8[SERIAL_BUFFER_SIZE];
+	serial_buffer_len = 0;
 }
 
 CMiniOrgan::~CMiniOrgan(void)
@@ -194,7 +193,7 @@ boolean CMiniOrgan::Initialize(void)
 	return FALSE;
 }
 
-void CMiniOrgan::LoadPatch(const char *patch)
+void CMiniOrgan::LoadPatch(const char* patch)
 {
 
 	// TODO I need to clear everything out before re-loading it here
@@ -396,37 +395,34 @@ void CMiniOrgan::FillChunkBuff()
 
 // Note that circle comes with ether_crc; which also includes the bits
 // this function only does the first half, so it matches python's zlib.crc32 function
-u32 crc(size_t ulLength, const u8 *pData)
+u32 crc(size_t ulLength, const u8* pData)
 {
-   u32 nCRC = ~0;
-   while (ulLength--)
-   {
-      nCRC ^= *pData++;
+	u32 nCRC = ~0;
+	while (ulLength--) {
+		nCRC ^= *pData++;
 
-      for (unsigned i = 0; i < 8; i++)
-      {
-         nCRC = (nCRC >> 1) ^ ((nCRC & 1) ? 0xEDB88320 : 0);
-      }
-   }
-   return ~nCRC;
+		for (unsigned i = 0; i < 8; i++) {
+			nCRC = (nCRC >> 1) ^ ((nCRC & 1) ? 0xEDB88320 : 0);
+		}
+	}
+	return ~nCRC;
 }
-
 
 void CMiniOrgan::CheckSerialForUpdates()
 {
 
 	CString tmp;
 
-       int maxRead = SERIAL_BUFFER_SIZE - serial_buffer_len;
-       if( maxRead > 1024 ) {
-               maxRead = 1024;
-       }
+	int maxRead = SERIAL_BUFFER_SIZE - serial_buffer_len;
+	if (maxRead > 1024) {
+		maxRead = 1024;
+	}
 
-	int nResult = m_Serial.Read(serial_buffer+serial_buffer_len, maxRead);
-	if( nResult == 0 ) {
+	int nResult = m_Serial.Read(serial_buffer + serial_buffer_len, maxRead);
+	if (nResult == 0) {
 		return;
 	}
-	if( nResult < 0 ) {
+	if (nResult < 0) {
 		tmp.Format("serial read returned error: %d", nResult);
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 		return;
@@ -435,7 +431,7 @@ void CMiniOrgan::CheckSerialForUpdates()
 	serial_buffer_len += nResult;
 
 	const char* reboot_magic_string = "magic-reboot-string-omg";
-	if( memmem(serial_buffer, serial_buffer_len, reboot_magic_string, strlen(reboot_magic_string)) ) {
+	if (memmem(serial_buffer, serial_buffer_len, reboot_magic_string, strlen(reboot_magic_string))) {
 		tmp.Format("found a reboot");
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 		reboot();
@@ -443,33 +439,33 @@ void CMiniOrgan::CheckSerialForUpdates()
 	}
 
 	const char* packet_magic_header = "here-comes-a-new-patch";
-	u8 *packet_start = (u8*) memmem(serial_buffer, serial_buffer_len, packet_magic_header, strlen(packet_magic_header));
-	if( packet_start ) {
-		size_t payload_start_offset = (packet_start - serial_buffer) + (size_t) strlen(packet_magic_header);
-		memmove(serial_buffer, serial_buffer+payload_start_offset, serial_buffer_len-payload_start_offset);
+	u8* packet_start = (u8*)memmem(serial_buffer, serial_buffer_len, packet_magic_header, strlen(packet_magic_header));
+	if (packet_start) {
+		size_t payload_start_offset = (packet_start - serial_buffer) + (size_t)strlen(packet_magic_header);
+		memmove(serial_buffer, serial_buffer + payload_start_offset, serial_buffer_len - payload_start_offset);
 		serial_buffer_len -= payload_start_offset;
 		serial_buffer_state = SERIAL_BUFFER_STATE_NEW_PACKET;
 		tmp.Format("packet found; remaining bytes in buffer: %d", serial_buffer_len);
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 	}
 
-	if( serial_buffer_state == SERIAL_BUFFER_STATE_NEW_PACKET && serial_buffer_len >= 6 ) {
+	if (serial_buffer_state == SERIAL_BUFFER_STATE_NEW_PACKET && serial_buffer_len >= 6) {
 		serial_buffer_expected_payload = ((u16*)serial_buffer)[0];
-		serial_buffer_expected_crc = ((u32*)(serial_buffer+sizeof(u16)))[0];
+		serial_buffer_expected_crc = ((u32*)(serial_buffer + sizeof(u16)))[0];
 		serial_buffer_state = SERIAL_BUFFER_STATE_PAYLOAD;
-		memmove(serial_buffer, serial_buffer+6, serial_buffer_len-6);
+		memmove(serial_buffer, serial_buffer + 6, serial_buffer_len - 6);
 		serial_buffer_len -= 6;
 
 		tmp.Format("header found expected size=%d crc=%d; remaining bytes in buffer: %d", serial_buffer_expected_payload, serial_buffer_expected_crc, serial_buffer_len);
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 	}
 
-	if( serial_buffer_state == SERIAL_BUFFER_STATE_PAYLOAD && serial_buffer_len >= serial_buffer_expected_payload ) {
+	if (serial_buffer_state == SERIAL_BUFFER_STATE_PAYLOAD && serial_buffer_len >= serial_buffer_expected_payload) {
 
 		u32 calculated_crc = crc(serial_buffer_expected_payload, serial_buffer);
 		int crc2 = calculated_crc;
 
-		if( calculated_crc == serial_buffer_expected_crc ) {
+		if (calculated_crc == serial_buffer_expected_crc) {
 			tmp.Format("got all %d bytes; and the crc matches", serial_buffer_expected_payload);
 			serial_buffer[serial_buffer_expected_payload] = 0; // TODO potential +1 buffer overflow
 			LoadPatch((const char*)serial_buffer);
@@ -484,7 +480,6 @@ void CMiniOrgan::CheckSerialForUpdates()
 		serial_buffer_len = 0;
 	}
 }
-
 
 void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLength)
 {
@@ -569,7 +564,7 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 		} else if (pPacket[1] == 1) {
 			// modulation
 			s_pThis->m_modulation = (float)pPacket[2] / 127.f; // 0.0 to 1.0
-			//hackmsg.Format("mod set to %f", s_pThis->m_modulation);
+			// hackmsg.Format("mod set to %f", s_pThis->m_modulation);
 		} else if (pPacket[1] == 74) {
 			// c1 dial
 			s_pThis->m_noise = pPacket[2];

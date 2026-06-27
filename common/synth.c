@@ -337,7 +337,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		osc->output *= (osc->amp_input->output + 1.0) / 2.0 * osc->amp_input_m;
 	}
 
-	if( osc->mod_output_m > 0.0f ) {
+	if (osc->mod_output_m > 0.0f) {
 		osc->output *= osc->mod_output_m * params->mod;
 	}
 

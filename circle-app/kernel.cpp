@@ -27,7 +27,6 @@
 // #include <circle/netdevice.h>
 // #include <circle/macaddress.h>
 
-
 // #define USB_GADGET_MODE
 
 static const char FromKernel[] = "kernel";
@@ -45,10 +44,10 @@ CKernel::CKernel(void)
     m_pUSB(new CUSBMIDIGadget(&m_Interrupt))
     ,
 #endif
-//#if RASPPI <= 3
-//	m_USBHCI (&m_Interrupt, &m_Timer)
-//	,
-//#endif
+    // #if RASPPI <= 3
+    //	m_USBHCI (&m_Interrupt, &m_Timer)
+    //	,
+    // #endif
     m_pMiniOrgan(0)
 {
 	m_ActLED.Blink(5); // show we are alive
@@ -83,15 +82,14 @@ boolean CKernel::Initialize(void)
 		bOK = m_Timer.Initialize();
 	}
 
-	if (bOK)
-	{
-//#if RASPPI <= 3
-//		bOK = m_USBHCI.Initialize ();
-//#elif RASPPI == 4
-//		bOK = m_Bcm54213.Initialize ();
-//#else
-//		bOK = m_MACB.Initialize ();
-//#endif
+	if (bOK) {
+		// #if RASPPI <= 3
+		//		bOK = m_USBHCI.Initialize ();
+		// #elif RASPPI == 4
+		//		bOK = m_Bcm54213.Initialize ();
+		// #else
+		//		bOK = m_MACB.Initialize ();
+		// #endif
 	}
 
 	if (bOK) {
@@ -102,7 +100,6 @@ boolean CKernel::Initialize(void)
 		assert(m_pUSB);
 		bOK = m_pUSB->Initialize();
 	}
-
 
 	if (bOK) {
 		m_pMiniOrgan = new CMiniOrgan(&m_Interrupt, &m_I2CMaster);
@@ -137,12 +134,12 @@ TShutdownMode CKernel::Run(void)
 		boolean bUpdated = m_pUSB->UpdatePlugAndPlay();
 
 		// ethernet
-		///if( pEth0->IsLinkUp () && pEth0->UpdatePHY () ) {
+		/// if( pEth0->IsLinkUp () && pEth0->UpdatePHY () ) {
 
-		///DMA_BUFFER (u8, FrameBuffer, FRAME_BUFFER_SIZE);
-		///unsigned nFrameLength;
+		/// DMA_BUFFER (u8, FrameBuffer, FRAME_BUFFER_SIZE);
+		/// unsigned nFrameLength;
 
-		///if (pEth0->ReceiveFrame (FrameBuffer, &nFrameLength))
+		/// if (pEth0->ReceiveFrame (FrameBuffer, &nFrameLength))
 		///{
 		///	CString Sender ("???");
 		///	CString Protocol ("???");
@@ -173,7 +170,6 @@ TShutdownMode CKernel::Run(void)
 		///			(const char *) Sender, (const char *) Protocol);
 		///}
 		///}
-
 
 		// m_Logger.Write (FromKernel, LogNotice, "loop %u", nCount);
 		m_pMiniOrgan->Process(bUpdated);

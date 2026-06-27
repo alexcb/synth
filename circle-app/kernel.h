@@ -65,13 +65,13 @@ class CKernel {
 	CUSBController* m_pUSB;
 
 	// for ethernet
-//#if RASPPI <= 3
-//	CUSBHCIDevice		m_USBHCI;
-//#elif RASPPI == 4
-//	CBcm54213Device		m_Bcm54213;
-//#else
-//	CMACBDevice		m_MACB;
-//#endif
+	// #if RASPPI <= 3
+	//	CUSBHCIDevice		m_USBHCI;
+	// #elif RASPPI == 4
+	//	CBcm54213Device		m_Bcm54213;
+	// #else
+	//	CMACBDevice		m_MACB;
+	// #endif
 
 	CMiniOrgan* m_pMiniOrgan;
 };
