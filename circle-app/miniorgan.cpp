@@ -209,6 +209,7 @@ void CMiniOrgan::LoadPatch(const char* patch)
 		if (load_patch(patch_contents_copy, keys[i].oscs) != 0) {
 			tmp.Format("loading patch for key %p failed;", &keys[i]);
 			hackmsg.Append(tmp);
+			return;
 		}
 	}
 
