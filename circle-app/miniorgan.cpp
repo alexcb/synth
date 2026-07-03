@@ -155,15 +155,18 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 
 	chunkBuff = static_cast<u32*>(::operator new(CHUNK_BUF_NUM_ELEM * 4));
 
+	keys = 0;
+	synth_new(&keys);
+
 	// TODO move this into common
-	size_t key_bytes = sizeof(struct key) * MAX_KEYS;
-	size_t osc_bytes = sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES;
-	keys = static_cast<struct key*>(::operator new(key_bytes));
-	memset(keys, 0, key_bytes);
-	for (size_t i = 0; i < MAX_KEYS; i++) {
-		keys[i].oscs = static_cast<struct osc*>(::operator new(osc_bytes));
-		memset(keys[i].oscs, 0, osc_bytes);
-	}
+	// size_t key_bytes = sizeof(struct key) * MAX_KEYS;
+	// size_t osc_bytes = sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES;
+	// keys = static_cast<struct key*>(::operator new(key_bytes));
+	// memset(keys, 0, key_bytes);
+	// for (size_t i = 0; i < MAX_KEYS; i++) {
+	// 	keys[i].oscs = static_cast<struct osc*>(::operator new(osc_bytes));
+	// 	memset(keys[i].oscs, 0, osc_bytes);
+	// }
 
 	LoadPatch(patch_contents);
 
@@ -195,8 +198,7 @@ boolean CMiniOrgan::Initialize(void)
 
 void CMiniOrgan::LoadPatch(const char* patch)
 {
-
-	// TODO I need to clear everything out before re-loading it here
+	synth_clear(keys);
 
 	CString tmp;
 	int n = strlen(patch);
@@ -207,15 +209,12 @@ void CMiniOrgan::LoadPatch(const char* patch)
 		hackmsg.Append(tmp);
 		strcpy(patch_contents_copy, patch);
 		if (load_patch(patch_contents_copy, keys[i].oscs) != 0) {
-			tmp.Format("loading patch for key %p failed;", &keys[i]);
+			tmp.Format("loading patch for key %p failed: %s;", &keys[i], load_patch_err());
 			hackmsg.Append(tmp);
 			return;
 		}
 	}
 
-	int osc_i = osc_num_to_index(1, OSC_TYPE_LFO);
-
-	// hackmsg.Format("sizeof(struct osc)=%d; numkeys=%d; osc_i=%d; NUM_OSCS=%d; ", sizeof(struct osc), MAX_KEYS, osc_i, NUM_OSCS); // 96 bytes
 	for (int i = 0; i < MAX_KEYS; i++) {
 		for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
 			struct osc* osc = &keys[i].oscs[j];
@@ -519,8 +518,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 	if (ucType == MIDI_NOTE_ON) {
 		assert(ucKeyNumber < 128);
 		float freq = s_KeyFrequency[ucKeyNumber];
-		// tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
-		// hackmsg.Append(tmp);
+		tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
+		hackmsg.Append(tmp);
 		struct key* k = 0;
 		get_key(s_pThis->keys, freq, &k, TRUE);
 		if (k) {

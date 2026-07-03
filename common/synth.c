@@ -10,6 +10,7 @@ void foo(char* p)
 #ifdef __circle__
 #include "atof.h"
 #include <circle/util.h>
+#include <circle/alloc.h>
 
 // these are in util.h
 // int strcmp (const char *pString1, const char *pString2);
@@ -21,9 +22,42 @@ void foo(char* p)
 #else
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #endif
 
 #include <math.h>
+
+#define MAX_SYNTH_ERR_MSG_SIZE 1024
+char synth_error_message[MAX_SYNTH_ERR_MSG_SIZE];
+
+
+const char* load_patch_err()
+{
+	return synth_error_message;
+}
+
+int synth_new(struct key** keys)
+{
+	size_t key_bytes = sizeof(struct key) * MAX_KEYS;
+	size_t osc_bytes = sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES;
+	*keys = malloc(key_bytes); // static_cast<struct key*>(::operator new(key_bytes));
+	memset(*keys, 0, key_bytes);
+	for (size_t i = 0; i < MAX_KEYS; i++) {
+		(*keys)[i].oscs = malloc(osc_bytes); // static_cast<struct osc*>(::operator new(osc_bytes));
+		memset((*keys)[i].oscs, 0, osc_bytes);
+	}
+	return 0;
+}
+
+void synth_clear(struct key* keys)
+{
+	for (size_t i = 0; i < MAX_KEYS; i++) {
+		struct osc *p = keys[i].oscs;
+		memset(&(keys[i]), 0, sizeof(struct key));
+		keys[i].oscs = p;
+		memset(p, 0, sizeof(struct osc)*NUM_OSCS * NUM_OSC_TYPES);
+	}
+}
 
 int parse_wave_type(const char* s)
 {
@@ -114,51 +148,79 @@ int osc_num_to_index(int osc_num, int osc_type)
 	return i;
 }
 
+#define MAX_LINE 1024
+
 int load_patch(char* src, struct osc* oscs)
 {
-	// FILE* fp;
-	// fp = fopen(path, "r");
-	// if (fp == NULL) {
-	//	return 1;
-	// }
-
+	synth_error_message[0] = '\0';
 	int n;
 
 	int osc_num;
 	int osc_type;
 
-	int first_call = 1;
-	char* save_ptr = NULL;
+	char line[MAX_LINE];
+	char key[MAX_LINE];
+	char value[MAX_LINE];
 
+	bool eof = false;
 	struct osc* osc = NULL;
-	for (;;) {
-		char* buffer = strtok_r(first_call ? src : 0, " \n", &save_ptr);
-		first_call = 0;
-		if (buffer == NULL) {
+	while(*src) {
+		size_t n = 0;
+		char *l = 0;
+		char* eol = strchr(src, '\n');
+		if( eol ) {
+			n = eol - src;
+		} else {
+			if( strlen(src) ) {
+				strcpy(synth_error_message, "patch must end with a newline");
+				return 1;
+			}
 			break;
 		}
-		n = strlen(buffer);
-		if (buffer[0] == '#') {
-			// TODO something here isn't working; because I had to change the encode_patch.py script to ignore these lines, and then the sound changed
+		if( n >= (MAX_LINE-1) ) {
+			strcpy(synth_error_message, "line too long");
+			return 1;
+		}
+		memcpy(line, src, n);
+		line[n] = '\0';
+		src += n+1;
+
+		if( !*line ) {
+			// blank line
 			continue;
 		}
+		if( line[0] == '#' ) {
+			// ignore comment
+			continue;
+		}
+
+		n = strlen(line);
+		//if (buffer[0] == '#') {
+		//	// TODO something here isn't working; because I had to change the encode_patch.py script to ignore these lines, and then the sound changed
+		//	continue;
+		//}
 		for (int j = n - 1; j >= 0; j--) {
-			if (buffer[j] == '\n') {
-				buffer[j] = '\0';
+			if (line[j] == '\n') {
+				line[j] = '\0';
 				n--;
 			}
 		}
-		if (buffer[0] == '[' && buffer[n - 1] == ']') {
-			buffer[n - 1] = '\0';
-			char* s = &buffer[1];
+		// printf("here with line %s\n", line);
+		if (line[0] == '[' && line[n - 1] == ']') {
+			line[n - 1] = '\0';
+			char* s = &line[1];
 
 			if (parse_osc(s, &osc_type, &osc_num) != 0) {
-				// fprintf(stderr, "err: failed to parse %s\n", s);
+				// circle doesnt have sprintf
+				strcpy(synth_error_message, "failed to parse ");
+				strcpy(synth_error_message+strlen(synth_error_message), s);
 				return 1;
 			}
 
 			if (osc_num < 1 || osc_num > NUM_OSCS) {
-				// fprintf(stderr, "err: expected osc number in range 1-10, got %d\n", osc_num);
+				// circle doesnt have sprintf
+				strcpy(synth_error_message, "expected osc number in range 1-10 while parsing ");
+				strcpy(synth_error_message+strlen(synth_error_message), s);
 				return 1;
 			}
 			osc = &oscs[osc_num_to_index(osc_num, osc_type)];
@@ -184,64 +246,98 @@ int load_patch(char* src, struct osc* oscs)
 		if (osc == NULL) {
 			continue;
 		}
-		char* v = strstr(buffer, "=");
+		// printf("here2 with line %s\n", line);
+		char* v = strstr(line, "=");
 		if (v == NULL) {
-			continue;
+			// printf("failed %s\n", line);
+			strcpy(synth_error_message, "failed to parse key=value pair ");
+			strcpy(synth_error_message+strlen(synth_error_message), line);
+			return 1;
 		}
-		*v = '\0';
-		v++;
-		if (strcmp(buffer, "type") == 0) {
-			osc->wave_type = parse_wave_type(v);
-		} else if (strcmp(buffer, "freq") == 0) {
-			if (strcmp(v, "sync") == 0) {
+		n = v-line;
+		memcpy(key, line, n);
+		key[n] = '\0';
+		strcpy(value, v+1);
+		
+		for( v = value; *v; v++ ) {
+			if( *v == '#' ) {
+				*v = '\0';
+				v--;
+				break;
+			}
+		}
+		while(v >= value ) {
+			if( *v == ' ' ) {
+				*v = '\0';
+				v--;
+			} else {
+				break;
+			}
+		}
+
+		 // printf("got key: %s; value: %s\n", key, value);
+
+
+		if (strcmp(key, "type") == 0) {
+			osc->wave_type = parse_wave_type(value);
+		} else if (strcmp(key, "freq") == 0) {
+			if (strcmp(value, "sync") == 0) {
 				osc->freq_sync = true;
 			} else {
-				osc->freq = atof(v);
+				osc->freq = atof(value);
 			}
-		} else if (strcmp(buffer, "freq_m") == 0) {
-			osc->freq_m = atof(v);
-		} else if (strcmp(buffer, "detune") == 0) {
-			osc->detune = atof(v);
-		} else if (strcmp(buffer, "output") == 0) {
-			osc->output_volume_m = atof(v);
-		} else if (strcmp(buffer, "phase_input") == 0) {
-			if (parse_osc(v, &osc_type, &osc_num) != 0) {
+		} else if (strcmp(key, "freq_m") == 0) {
+			osc->freq_m = atof(value);
+		} else if (strcmp(key, "detune") == 0) {
+			osc->detune = atof(value);
+		} else if (strcmp(key, "output") == 0) {
+			osc->output_volume_m = atof(value);
+		} else if (strcmp(key, "phase_input") == 0) {
+			if (parse_osc(value, &osc_type, &osc_num) != 0) {
+				strcpy(synth_error_message, "failed to parse phase_input ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
 				return 1;
 			}
 			int osc_i = osc_num_to_index(osc_num, osc_type);
 			if (osc_i < 0) {
+				strcpy(synth_error_message, "failed to convert phase_input ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
 				return 1;
 			}
 			osc->phase_input = &oscs[osc_i];
-		} else if (strcmp(buffer, "phase_input_m") == 0) {
-			osc->phase_input_m = atof(v);
-		} else if (strcmp(buffer, "amp_input") == 0) {
-			if (parse_osc(v, &osc_type, &osc_num) != 0) {
+		} else if (strcmp(key, "phase_input_m") == 0) {
+			osc->phase_input_m = atof(value);
+		} else if (strcmp(key, "amp_input") == 0) {
+			if (parse_osc(value, &osc_type, &osc_num) != 0) {
+				strcpy(synth_error_message, "failed to parse amp_input ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
 				return 1;
 			}
 			int osc_i = osc_num_to_index(osc_num, osc_type);
 			if (osc_i < 0) {
+				strcpy(synth_error_message, "failed to convert amp_input ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
 				return 1;
 			}
 			osc->amp_input = &oscs[osc_i];
-		} else if (strcmp(buffer, "amp_input_m") == 0) {
-			osc->amp_input_m = atof(v);
-		} else if (strcmp(buffer, "attack") == 0) {
-			osc->attack = MAX(atof(v), ATTACK_MIN);
-		} else if (strcmp(buffer, "decay") == 0) {
-			osc->decay = MAX(atof(v), DECAY_MIN);
-		} else if (strcmp(buffer, "sustain") == 0) {
-			osc->sustain = atof(v);
-		} else if (strcmp(buffer, "release") == 0) {
-			osc->release = atof(v);
-		} else if (strcmp(buffer, "pitch_m") == 0) {
-			osc->pitch_m = atof(v);
-		} else if (strcmp(buffer, "mod_freq_m") == 0) {
-			osc->mod_freq_m = atof(v);
-		} else if (strcmp(buffer, "mod_output_m") == 0) {
-			osc->mod_output_m = atof(v);
+		} else if (strcmp(key, "amp_input_m") == 0) {
+			osc->amp_input_m = atof(value);
+		} else if (strcmp(key, "attack") == 0) {
+			osc->attack = MAX(atof(value), ATTACK_MIN);
+		} else if (strcmp(key, "decay") == 0) {
+			osc->decay = MAX(atof(value), DECAY_MIN);
+		} else if (strcmp(key, "sustain") == 0) {
+			osc->sustain = atof(value);
+		} else if (strcmp(key, "release") == 0) {
+			osc->release = atof(value);
+		} else if (strcmp(key, "pitch_m") == 0) {
+			osc->pitch_m = atof(value);
+		} else if (strcmp(key, "mod_freq_m") == 0) {
+			osc->mod_freq_m = atof(value);
+		} else if (strcmp(key, "mod_output_m") == 0) {
+			osc->mod_output_m = atof(value);
 		} else {
-			// printf("unhandled line %s\n", buffer);
+			// printf("unhandled line %s\n", key);
 		}
 	}
 

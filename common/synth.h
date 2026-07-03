@@ -84,11 +84,16 @@ struct params {
 	float mod;
 };
 
+int synth_new(struct key** keys);
+void synth_clear(struct key* keys);
+
 int parse_wave_type(const char* s);
 int parse_osc(const char* s, int* osc_type, int* n);
-int load_patch(char* path, struct osc* oscs);
+int load_patch(char* src, struct osc* oscs);
 void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t, float dt);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
+
+const char* load_patch_err();
 
 // TODO remove this
 int osc_num_to_index(int osc_num, int osc_type);

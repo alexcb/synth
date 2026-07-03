@@ -4,6 +4,9 @@ import sys
 import zlib
 
 reboot = False
+if len(sys.argv) != 2:
+    print('missing <path> or "reboot"')
+    sys.exit(1)
 path = sys.argv[1]
 if path == "reboot":
     reboot = True
