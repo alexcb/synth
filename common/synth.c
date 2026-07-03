@@ -195,10 +195,6 @@ int load_patch(char* src, struct osc* oscs)
 		}
 
 		n = strlen(line);
-		//if (buffer[0] == '#') {
-		//	// TODO something here isn't working; because I had to change the encode_patch.py script to ignore these lines, and then the sound changed
-		//	continue;
-		//}
 		for (int j = n - 1; j >= 0; j--) {
 			if (line[j] == '\n') {
 				line[j] = '\0';
