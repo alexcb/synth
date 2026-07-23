@@ -1,13 +1,14 @@
-# [vfo1]
-# type=pulse12
-# output=0.3
-# attack=0.03
-# decay=0.2
-# sustain=0.0
-# release=0.0
+[vfo1]
+type=pulse12
+output=0.3
+attack=0.03
+decay=0.2
+sustain=0.0
+release=0.0
+pitch_m=0.1
 
 [vfo2]
-type=random
+type=square
 output=1.0
 attack=0.2
 release=0.8
@@ -15,6 +16,7 @@ sustain=0.4
 decay=0.2
 phase_input=lfo1
 phase_input_m=10.0
+pitch_m=0.1
 
 # [vfo3]
 # type=square

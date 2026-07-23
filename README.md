@@ -58,3 +58,7 @@ adjust the amplitude (volume) using a different oscillator:
     ./make.circle
     cd circle-app
     make flash
+
+# switching to raspberry pi 4
+
+    I was using a pi3; however it was sometimes getting stuck notes (and dexed was also showing the same issue). So I edited Config.mk to change it to `RASPPI = 4`, and `./makeall clean && ./makeall`, then for the booloader: `make kernel8-rpi4.img` (note that `make all` fails to compile the 32bit version)
