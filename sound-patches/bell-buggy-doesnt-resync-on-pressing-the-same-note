@@ -1,0 +1,20 @@
+[vfo1]
+type=sine
+output=1.0
+attack=0.03 # seconds before max amplitude
+decay=1.5 # seconds of decay (ranging from max amplitude of 1.0 to sustain value)
+sustain=0.0 # hold the amplitutde at this level until the key is released, setting to 0 disables the ability of holding it.
+release=0.4
+amp_input=lfo1
+phase_input=lfo2 # slowly drags the pitch down
+phase_input_m=50.0
+
+[lfo1]
+type=sine
+freq=sync
+freq_m=3.5 # other good settings are 2.6, 3.5, 12.5
+
+[lfo2]
+type=saw_down
+freq=sync
+freq_m=0.001

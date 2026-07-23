@@ -1,0 +1,13 @@
+[vfo1]
+type=square
+output=1.0
+attack=0.03
+decay=0.0
+sustain=1.0
+release=0.0
+amp_input=lfo1
+
+[lfo1]
+type=saw_down
+freq=1.0
+mod_freq_m=6.0

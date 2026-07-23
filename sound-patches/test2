@@ -1,0 +1,7 @@
+[vfo1]
+type=saw_up
+output=1.0
+attack=0.03
+decay=0.2
+sustain=0.0
+release=0.0
