@@ -442,11 +442,13 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	// ASDR filtering
 	if (key->pressed_at > key->released_at) {
 		float time_since_press = t - key->pressed_at;
+		// osc->output_volume = ads_level(time_since_press, osc->attack * params->c1, osc->output_volume_attack_start, osc->decay * params->c2, osc->sustain * params->c3);
 		osc->output_volume = ads_level(time_since_press, osc->attack, osc->output_volume_attack_start, osc->decay, osc->sustain);
 		osc->output_volume_at_release = osc->output_volume;
 	} else if (key->released_at > key->pressed_at) {
 		float time_since_release = t - key->released_at;
-		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->decay);
+		// osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->release * params->c4);
+		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->release);
 	}
 }
 

@@ -1,7 +1,7 @@
 [vfo1]
 type=square
 output=1.0
-attack=0.03
+attack=1.03
 decay=0.0
 sustain=1.0
 release=0.0

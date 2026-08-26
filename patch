@@ -4,14 +4,14 @@ output=0.3
 attack=0.03
 decay=0.2
 sustain=0.0
-release=0.0
+release=0.05
 pitch_m=0.1
 
 [vfo2]
 type=square
 output=1.0
 attack=0.2
-release=0.8
+release=0.2
 sustain=0.4
 decay=0.2
 phase_input=lfo1

@@ -1,0 +1,15 @@
+[vfo1]
+type=triangle
+output=1.0
+attack=0.001
+decay=0.001
+sustain=1.0
+release=0.01
+
+[vfo2]
+type=random
+output=0.5
+attack=0.001
+decay=0.001
+sustain=0.0
+release=0.01

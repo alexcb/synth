@@ -23,6 +23,8 @@
 #include <circle/logger.h>
 #include <circle/sysconfig.h>
 #include <circle/util.h>
+#include <circle/cputhrottle.h>
+#include <circle/sched/scheduler.h>
 
 #include <circle/startup.h>
 #include <circle/string.h>
@@ -97,6 +99,7 @@ static inline int rand_r(unsigned* pSeed)
 volatile int chunk_ready = 0;
 volatile int num_underruns = 0;
 int ignore_underruns = 0;
+int ignore_temp = 0;
 
 CString hackmsg;
 // char hackmsg[1024];
@@ -135,6 +138,10 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_modulation(0.f)
     , m_noise(0)
     , m_detune(0)
+    , m_knob1(0.f)
+    , m_knob2(0.f)
+    , m_knob3(0.f)
+    , m_knob4(0.f)
     , serial_buffer_state(0)
 {
 	s_pThis = this;
@@ -254,6 +261,22 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 		num_underruns = 0;
 	}
 
+	if (ignore_temp > 0) {
+		ignore_temp--;
+	}
+	if( ignore_temp == 0 ) {
+		unsigned nCelsius = CCPUThrottle::Get ()->GetTemperature ();
+		CString tmp;
+		tmp.Format("tempurature: %d\n", nCelsius);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+
+		// don't print for a while
+		ignore_temp = 10000;
+	}
+
+	// TODO do this only once
+	CCPUThrottle::Get ()->SetSpeed (CPUSpeedLow);
+
 	CheckSerialForUpdates();
 
 	// The sound controller is callable from TASK_LEVEL only. That's why we must do
@@ -351,6 +374,10 @@ void CMiniOrgan::set_knobs()
 
 	s_pThis->voice_manager.params->pitch = m_nPitchBend;
 	s_pThis->voice_manager.params->mod = m_modulation;
+	s_pThis->voice_manager.params->c1 = m_knob1;
+	s_pThis->voice_manager.params->c2 = m_knob2;
+	s_pThis->voice_manager.params->c3 = m_knob3;
+	s_pThis->voice_manager.params->c4 = m_knob4;
 }
 
 void CMiniOrgan::FillChunkBuff()
@@ -358,6 +385,7 @@ void CMiniOrgan::FillChunkBuff()
 	assert(s_pThis != 0);
 
 	if (chunk_ready) {
+		CScheduler::Get ()->MsSleep (10);
 		return; // waiting to be consumed
 	}
 
@@ -388,6 +416,7 @@ void CMiniOrgan::FillChunkBuff()
 		chunkBuff[chunk_i] = nSample;
 		chunkBuffReadAvail++;
 		numToWrite--;
+		CScheduler::Get()->Yield();
 	}
 
 	chunk_ready = 1;
@@ -566,17 +595,18 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			s_pThis->m_modulation = (float)pPacket[2] / 127.f; // 0.0 to 1.0
 			// hackmsg.Format("mod set to %f", s_pThis->m_modulation);
 		} else if (pPacket[1] == 74) {
-			// c1 dial
-			s_pThis->m_noise = pPacket[2];
+			s_pThis->m_knob1 = (float)pPacket[2] / 127.f; // 0.0 to 1.0
+			// hackmsg.Format("setting c1 to %u", pPacket[2]);
 		} else if (pPacket[1] == 71) {
-			// c1 dial
-			s_pThis->m_detune = pPacket[2];
+			s_pThis->m_knob2 = (float)pPacket[2] / 127.f; // 0.0 to 1.0
+			// hackmsg.Format("setting c2 to %u", pPacket[2]);
+		} else if (pPacket[1] == 73) {
+			s_pThis->m_knob3 = (float)pPacket[2] / 127.f; // 0.0 to 1.0
+			// hackmsg.Format("setting c3 to %u", pPacket[2]);
+		} else if (pPacket[1] == 72) {
+			s_pThis->m_knob4 = (float)pPacket[2] / 127.f; // 0.0 to 1.0
+			// hackmsg.Format("setting c4 to %u", pPacket[2]);
 		} else {
-			// TODO handle pPacket[1] == 1 (modulation)
-			// TODO handle pPacket[1] == 74 (c1)
-			// TODO handle pPacket[1] == 71 (c2)
-			// TODO handle pPacket[1] == 73 (c3)
-			// TODO handle pPacket[1] == 72 (c4)
 			hackmsg.Format("got MIDI_CC %u", pPacket[1]);
 		}
 	} else if (ucType == 14) {
@@ -584,6 +614,9 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			unsigned pitch_bend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
 			s_pThis->m_nPitchBend = ((float)pitch_bend - 64.f) / 64.f;
 			// hackmsg.Format("pitch bend %u -> %f", pitch_bend, s_pThis->m_nPitchBend); // 0 -> -1, 64 -> 0, 127 -> 0.97
+		} else if (pPacket[1] == 127 && pPacket[2] == 127) {
+			// special case since there are 129 bits for the pitch wheel, this value represents the max bend upwards to reach 1.0
+			s_pThis->m_nPitchBend = 1.0f;
 		} else {
 			hackmsg.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
 		}

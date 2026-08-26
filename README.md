@@ -62,3 +62,14 @@ adjust the amplitude (volume) using a different oscillator:
 # switching to raspberry pi 4
 
     I was using a pi3; however it was sometimes getting stuck notes (and dexed was also showing the same issue). So I edited Config.mk to change it to `RASPPI = 4`, and `./makeall clean && ./makeall`, then for the booloader: `make kernel8-rpi4.img` (note that `make all` fails to compile the 32bit version)
+
+it might also be required to define SCREEN_HEADLESS under Config.mk
+
+# making a new card:
+
+  cd circle/boot
+  make && make armstub64
+  cp *.{bin,elf,dat,dtb} /path/to/mounted/sd-card/
+  cp config64.txt /path/to/mounted/sd-card/config.txt
+  cd circle-app
+  cp kernel8-rpi4.img /path/to/mounted/sd-card/

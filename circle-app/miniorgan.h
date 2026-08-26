@@ -122,6 +122,11 @@ class CMiniOrgan : public SOUND_CLASS {
 	u8 m_noise;
 	u8 m_detune;
 
+	float m_knob1;
+	float m_knob2;
+	float m_knob3;
+	float m_knob4;
+
 	unsigned m_nRandSeed;
 
 	u16 chunkBuffReadIndex;

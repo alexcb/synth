@@ -82,6 +82,10 @@ struct key {
 struct params {
 	float pitch;
 	float mod;
+	float c1;
+	float c2;
+	float c3;
+	float c4;
 };
 
 int synth_new(struct key** keys);

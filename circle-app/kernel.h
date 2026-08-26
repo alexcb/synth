@@ -32,6 +32,8 @@
 #include <circle/timer.h>
 #include <circle/types.h>
 #include <circle/usb/usbcontroller.h>
+#include <circle/cputhrottle.h>
+#include <circle/sched/scheduler.h>
 
 // #include <circle/usb/usbhcidevice.h>
 
@@ -63,6 +65,8 @@ class CKernel {
 	CLogger m_Logger;
 	CI2CMaster m_I2CMaster;
 	CUSBController* m_pUSB;
+	CCPUThrottle m_CPUThrottle;
+	CScheduler m_Scheduler;
 
 	// for ethernet
 	// #if RASPPI <= 3
