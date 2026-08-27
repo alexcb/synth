@@ -156,7 +156,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 					// if( osc->output > 0.0f ) {
 					//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);
 					// }
-					output += osc->output * osc->output_volume * osc->output_volume_m;
+					output += osc->output * osc->output_volume * get_float_param(&osc->output_volume_m);
 					if (osc->output_volume > 0.0 || k->released_at == 0.0) {
 						done = false;
 					}

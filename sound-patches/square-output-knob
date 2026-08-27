@@ -1,0 +1,12 @@
+[vfo1]
+type=square
+output=1.0
+attack=1.0*c1
+decay=1.0*c2
+sustain=1.0*c3
+release=1.0*c4
+
+# attack=0.001
+# decay=0.001
+# sustain=1.0
+# release=0.01

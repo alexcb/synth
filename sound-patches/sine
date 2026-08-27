@@ -1,0 +1,23 @@
+[vfo1]
+type=sine
+output=1.0
+attack=0.01
+decay=20.0 # TODO, should this be exponential decay? the software only supports linear right now.
+sustain=0.0
+release=0.05
+#phase_input=lfo1
+
+#TODO need to support a drive setting, which will allow for clipping at the top of the sine wave
+# this would be like setting output=1.6; however it should be decoupled for cases where we want it to clip without sending it to 
+# the sound output (e.g. we would just use it to control a different oscilator)
+
+[vfo2]
+type=sine
+freq_m=0.5
+# TODO would be nice to implement inherit=vfo1, which would fall back to all defined settings from vfo1
+# but for now, it' just copy/pasted below:
+output=0.7
+attack=0.01
+decay=20.0
+sustain=0.0
+release=0.05

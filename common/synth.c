@@ -9,6 +9,7 @@ void foo(char* p)
 
 #ifdef __circle__
 #include "atof.h"
+#include "isspace.h"
 #include <circle/util.h>
 #include <circle/alloc.h>
 
@@ -57,6 +58,71 @@ void synth_clear(struct key* keys)
 		keys[i].oscs = p;
 		memset(p, 0, sizeof(struct osc)*NUM_OSCS * NUM_OSC_TYPES);
 	}
+}
+
+// set the param to a static value
+void set_float_param(struct float_param *p, float v)
+{
+	p->m = v;
+	p->v = NULL;
+}
+
+int parse_float_param(const char *s, struct float_param *p, struct params *param_values)
+{
+	bool float_found = false;
+	for(;isspace( *s ); s++ );
+	const char *next_s = NULL;
+	p->m = acb_strtof(s, &next_s);
+	if( next_s == NULL ) {
+		p->m = 1.0;
+	} else {
+		float_found = true;
+	}
+	for(;isspace( *next_s ); next_s++ );
+	if( float_found ) {
+		if( *next_s == '\0' ) {
+			p->v = NULL;
+			return 0;
+		}
+		if( *next_s != '*' ) {
+			return 1;
+		}
+		next_s++;
+		for(;isspace( *next_s ); next_s++ );
+	}
+	if (strcasecmp(next_s, "pitch") == 0) {
+		p->v = &(param_values->pitch);
+	}
+	else if (strcasecmp(next_s, "mod") == 0) {
+		p->v = &(param_values->mod);
+	}
+	else if (strcasecmp(next_s, "c1") == 0) {
+		p->v = &(param_values->c1);
+	}
+	else if (strcasecmp(next_s, "c2") == 0) {
+		p->v = &(param_values->c2);
+	}
+	else if (strcasecmp(next_s, "c3") == 0) {
+		p->v = &(param_values->c3);
+	}
+	else if (strcasecmp(next_s, "c4") == 0) {
+		p->v = &(param_values->c4);
+	}
+	else {
+		return 1;
+	}
+
+	// TODO support an offset value, e.g. output=0.5*mod+0.5
+
+	return 0;
+}
+
+float get_float_param(struct float_param *p)
+{
+	if( p->v ) {
+		return *(p->v) * p->m;
+	}
+	return p->m;
 }
 
 int parse_wave_type(const char* s)
@@ -114,6 +180,8 @@ int parse_osc(const char* s, int* osc_type, int* n)
 
 float ads_level(float t, float attack, float attack_start, float decay, float sustain)
 {
+	attack = MAX(attack, ATTACK_MIN);
+	decay = MAX(decay, DECAY_MIN);
 	if (t < attack) {
 		return MAX(t / attack, attack_start);
 	}
@@ -150,7 +218,7 @@ int osc_num_to_index(int osc_num, int osc_type)
 
 #define MAX_LINE 1024
 
-int load_patch(char* src, struct osc* oscs)
+int load_patch(char* src, struct osc* oscs, struct params *param_values)
 {
 	synth_error_message[0] = '\0';
 	int n;
@@ -224,14 +292,15 @@ int load_patch(char* src, struct osc* oscs)
 
 			// init defaults
 			osc->freq_m = 1.0;
-			osc->attack = ATTACK_MIN;
-			osc->sustain = 1.0;
-			osc->decay = DECAY_MIN;
+			set_float_param(&osc->attack, ATTACK_MIN);
+			set_float_param(&osc->sustain, 1.0);
+			set_float_param(&osc->decay, DECAY_MIN);
+			set_float_param(&osc->release, 0.0);
 			osc->phase_input_m = 1.0;
 			osc->amp_input_m = 1.0;
 			if (osc->osc_type == OSC_TYPE_VFO) {
 				osc->freq_m = 1.0;
-				osc->output_volume_m = 1.0;
+				set_float_param(&osc->output_volume_m, 1.0);
 				osc->osc_type = WAVE_TYPE_SINE;
 			} else if (osc->osc_type == OSC_TYPE_LFO) {
 				osc->freq = 1.0;
@@ -287,7 +356,11 @@ int load_patch(char* src, struct osc* oscs)
 		} else if (strcmp(key, "detune") == 0) {
 			osc->detune = atof(value);
 		} else if (strcmp(key, "output") == 0) {
-			osc->output_volume_m = atof(value);
+			 if( parse_float_param(value, &osc->output_volume_m, param_values) ) {
+				strcpy(synth_error_message, "failed to parse output ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "phase_input") == 0) {
 			if (parse_osc(value, &osc_type, &osc_num) != 0) {
 				strcpy(synth_error_message, "failed to parse phase_input ");
@@ -319,13 +392,29 @@ int load_patch(char* src, struct osc* oscs)
 		} else if (strcmp(key, "amp_input_m") == 0) {
 			osc->amp_input_m = atof(value);
 		} else if (strcmp(key, "attack") == 0) {
-			osc->attack = MAX(atof(value), ATTACK_MIN);
+			 if( parse_float_param(value, &osc->attack, param_values) ) {
+				strcpy(synth_error_message, "failed to parse attack ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "decay") == 0) {
-			osc->decay = MAX(atof(value), DECAY_MIN);
+			 if( parse_float_param(value, &osc->decay, param_values) ) {
+				strcpy(synth_error_message, "failed to parse decay ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "sustain") == 0) {
-			osc->sustain = atof(value);
+			if( parse_float_param(value, &osc->sustain, param_values) ) {
+				strcpy(synth_error_message, "failed to parse sustain ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "release") == 0) {
-			osc->release = atof(value);
+			if( parse_float_param(value, &osc->release, param_values) ) {
+				strcpy(synth_error_message, "failed to parse release ");
+				strcpy(synth_error_message+strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "pitch_m") == 0) {
 			osc->pitch_m = atof(value);
 		} else if (strcmp(key, "mod_freq_m") == 0) {
@@ -443,12 +532,12 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	if (key->pressed_at > key->released_at) {
 		float time_since_press = t - key->pressed_at;
 		// osc->output_volume = ads_level(time_since_press, osc->attack * params->c1, osc->output_volume_attack_start, osc->decay * params->c2, osc->sustain * params->c3);
-		osc->output_volume = ads_level(time_since_press, osc->attack, osc->output_volume_attack_start, osc->decay, osc->sustain);
+		osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
 		osc->output_volume_at_release = osc->output_volume;
 	} else if (key->released_at > key->pressed_at) {
 		float time_since_release = t - key->released_at;
 		// osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->release * params->c4);
-		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->release);
+		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, get_float_param(&osc->release));
 	}
 }
 

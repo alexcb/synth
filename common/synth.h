@@ -37,6 +37,11 @@ extern "C" {
 // TODO remove this
 void foo(char* p);
 
+struct float_param {
+	float m;
+	float *v;
+};
+
 struct osc {
 	float freq;
 	float wave_pos;
@@ -49,11 +54,11 @@ struct osc {
 	struct osc* phase_input;
 	float amp_input_m;
 	struct osc* amp_input;
-	float output_volume_m;
-	float attack; // time from 0 to 1
-	float decay; // time from 1 to sustain level
-	float sustain; // level ranging from 0 to 1
-	float release; // time from sustain level to 0
+	struct float_param output_volume_m;
+	struct float_param attack; // time from 0 to 1
+	struct float_param decay; // time from 1 to sustain level
+	struct float_param sustain; // level ranging from 0 to 1
+	struct float_param release; // time from sustain level to 0
 	float pitch_m; // if set, multiply pitch bend by this amount
 	float mod_freq_m; // if set, multiply modulation by this amount and apply it to the freq
 	float mod_output_m; // if set, multiply modulation by this amount and apply it to volume output
@@ -93,11 +98,13 @@ void synth_clear(struct key* keys);
 
 int parse_wave_type(const char* s);
 int parse_osc(const char* s, int* osc_type, int* n);
-int load_patch(char* src, struct osc* oscs);
+int load_patch(char* src, struct osc* oscs, struct params *param_values);
 void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t, float dt);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
 const char* load_patch_err();
+
+float get_float_param(struct float_param *p);
 
 // TODO remove this
 int osc_num_to_index(int osc_num, int osc_type);

@@ -138,10 +138,10 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
     , m_modulation(0.f)
     , m_noise(0)
     , m_detune(0)
-    , m_knob1(0.f)
-    , m_knob2(0.f)
-    , m_knob3(0.f)
-    , m_knob4(0.f)
+    , m_knob1(0.5f)
+    , m_knob2(0.5f)
+    , m_knob3(0.5f)
+    , m_knob4(0.5f)
     , serial_buffer_state(0)
 {
 	s_pThis = this;
@@ -215,7 +215,7 @@ void CMiniOrgan::LoadPatch(const char* patch)
 		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
 		hackmsg.Append(tmp);
 		strcpy(patch_contents_copy, patch);
-		if (load_patch(patch_contents_copy, keys[i].oscs) != 0) {
+		if (load_patch(patch_contents_copy, keys[i].oscs, s_pThis->voice_manager.params) != 0) {
 			tmp.Format("loading patch for key %p failed: %s;", &keys[i], load_patch_err());
 			hackmsg.Append(tmp);
 			return;
