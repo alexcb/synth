@@ -39,7 +39,7 @@ void foo(char* p);
 
 struct float_param {
 	float m;
-	float *v;
+	float* v;
 };
 
 struct osc {
@@ -98,13 +98,13 @@ void synth_clear(struct key* keys);
 
 int parse_wave_type(const char* s);
 int parse_osc(const char* s, int* osc_type, int* n);
-int load_patch(char* src, struct osc* oscs, struct params *param_values);
+int load_patch(char* src, struct osc* oscs, struct params* param_values);
 void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t, float dt);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
 const char* load_patch_err();
 
-float get_float_param(struct float_param *p);
+float get_float_param(struct float_param* p);
 
 // TODO remove this
 int osc_num_to_index(int osc_num, int osc_type);

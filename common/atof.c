@@ -38,7 +38,7 @@ float acb_strtof(const char* s, const char** remaining)
 		s++;
 	}
 
-	if( remaining != NULL && valid ) {
+	if (remaining != NULL && valid) {
 		*remaining = s;
 	}
 

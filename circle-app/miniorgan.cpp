@@ -19,12 +19,12 @@
 //
 #include "miniorgan.h"
 #include <assert.h>
+#include <circle/cputhrottle.h>
 #include <circle/devicenameservice.h>
 #include <circle/logger.h>
+#include <circle/sched/scheduler.h>
 #include <circle/sysconfig.h>
 #include <circle/util.h>
-#include <circle/cputhrottle.h>
-#include <circle/sched/scheduler.h>
 
 #include <circle/startup.h>
 #include <circle/string.h>
@@ -264,8 +264,8 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 	if (ignore_temp > 0) {
 		ignore_temp--;
 	}
-	if( ignore_temp == 0 ) {
-		unsigned nCelsius = CCPUThrottle::Get ()->GetTemperature ();
+	if (ignore_temp == 0) {
+		unsigned nCelsius = CCPUThrottle::Get()->GetTemperature();
 		CString tmp;
 		tmp.Format("tempurature: %d\n", nCelsius);
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
@@ -275,7 +275,7 @@ void CMiniOrgan::Process(boolean bPlugAndPlayUpdated)
 	}
 
 	// TODO do this only once
-	CCPUThrottle::Get ()->SetSpeed (CPUSpeedLow);
+	CCPUThrottle::Get()->SetSpeed(CPUSpeedLow);
 
 	CheckSerialForUpdates();
 
@@ -385,7 +385,7 @@ void CMiniOrgan::FillChunkBuff()
 	assert(s_pThis != 0);
 
 	if (chunk_ready) {
-		CScheduler::Get ()->MsSleep (10);
+		CScheduler::Get()->MsSleep(10);
 		return; // waiting to be consumed
 	}
 

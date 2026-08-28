@@ -22,18 +22,18 @@
 
 #include "miniorgan.h"
 #include <circle/actled.h>
+#include <circle/cputhrottle.h>
 #include <circle/devicenameservice.h>
 #include <circle/exceptionhandler.h>
 #include <circle/i2cmaster.h>
 #include <circle/interrupt.h>
 #include <circle/koptions.h>
 #include <circle/logger.h>
+#include <circle/sched/scheduler.h>
 #include <circle/screen.h>
 #include <circle/timer.h>
 #include <circle/types.h>
 #include <circle/usb/usbcontroller.h>
-#include <circle/cputhrottle.h>
-#include <circle/sched/scheduler.h>
 
 // #include <circle/usb/usbhcidevice.h>
 

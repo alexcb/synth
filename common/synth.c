@@ -10,8 +10,8 @@ void foo(char* p)
 #ifdef __circle__
 #include "atof.h"
 #include "isspace.h"
-#include <circle/util.h>
 #include <circle/alloc.h>
+#include <circle/util.h>
 
 // these are in util.h
 // int strcmp (const char *pString1, const char *pString2);
@@ -21,16 +21,15 @@ void foo(char* p)
 #define uint32_t unsigned
 #define NULL 0
 #else
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #endif
 
 #include <math.h>
 
 #define MAX_SYNTH_ERR_MSG_SIZE 1024
 char synth_error_message[MAX_SYNTH_ERR_MSG_SIZE];
-
 
 const char* load_patch_err()
 {
@@ -53,62 +52,59 @@ int synth_new(struct key** keys)
 void synth_clear(struct key* keys)
 {
 	for (size_t i = 0; i < MAX_KEYS; i++) {
-		struct osc *p = keys[i].oscs;
+		struct osc* p = keys[i].oscs;
 		memset(&(keys[i]), 0, sizeof(struct key));
 		keys[i].oscs = p;
-		memset(p, 0, sizeof(struct osc)*NUM_OSCS * NUM_OSC_TYPES);
+		memset(p, 0, sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES);
 	}
 }
 
 // set the param to a static value
-void set_float_param(struct float_param *p, float v)
+void set_float_param(struct float_param* p, float v)
 {
 	p->m = v;
 	p->v = NULL;
 }
 
-int parse_float_param(const char *s, struct float_param *p, struct params *param_values)
+int parse_float_param(const char* s, struct float_param* p, struct params* param_values)
 {
 	bool float_found = false;
-	for(;isspace( *s ); s++ );
-	const char *next_s = NULL;
+	for (; isspace(*s); s++)
+		;
+	const char* next_s = NULL;
 	p->m = acb_strtof(s, &next_s);
-	if( next_s == NULL ) {
+	if (next_s == NULL) {
 		p->m = 1.0;
 	} else {
 		float_found = true;
 	}
-	for(;isspace( *next_s ); next_s++ );
-	if( float_found ) {
-		if( *next_s == '\0' ) {
+	for (; isspace(*next_s); next_s++)
+		;
+	if (float_found) {
+		if (*next_s == '\0') {
 			p->v = NULL;
 			return 0;
 		}
-		if( *next_s != '*' ) {
+		if (*next_s != '*') {
 			return 1;
 		}
 		next_s++;
-		for(;isspace( *next_s ); next_s++ );
+		for (; isspace(*next_s); next_s++)
+			;
 	}
 	if (strcasecmp(next_s, "pitch") == 0) {
 		p->v = &(param_values->pitch);
-	}
-	else if (strcasecmp(next_s, "mod") == 0) {
+	} else if (strcasecmp(next_s, "mod") == 0) {
 		p->v = &(param_values->mod);
-	}
-	else if (strcasecmp(next_s, "c1") == 0) {
+	} else if (strcasecmp(next_s, "c1") == 0) {
 		p->v = &(param_values->c1);
-	}
-	else if (strcasecmp(next_s, "c2") == 0) {
+	} else if (strcasecmp(next_s, "c2") == 0) {
 		p->v = &(param_values->c2);
-	}
-	else if (strcasecmp(next_s, "c3") == 0) {
+	} else if (strcasecmp(next_s, "c3") == 0) {
 		p->v = &(param_values->c3);
-	}
-	else if (strcasecmp(next_s, "c4") == 0) {
+	} else if (strcasecmp(next_s, "c4") == 0) {
 		p->v = &(param_values->c4);
-	}
-	else {
+	} else {
 		return 1;
 	}
 
@@ -117,9 +113,9 @@ int parse_float_param(const char *s, struct float_param *p, struct params *param
 	return 0;
 }
 
-float get_float_param(struct float_param *p)
+float get_float_param(struct float_param* p)
 {
-	if( p->v ) {
+	if (p->v) {
 		return *(p->v) * p->m;
 	}
 	return p->m;
@@ -218,7 +214,7 @@ int osc_num_to_index(int osc_num, int osc_type)
 
 #define MAX_LINE 1024
 
-int load_patch(char* src, struct osc* oscs, struct params *param_values)
+int load_patch(char* src, struct osc* oscs, struct params* param_values)
 {
 	synth_error_message[0] = '\0';
 	int n;
@@ -232,32 +228,32 @@ int load_patch(char* src, struct osc* oscs, struct params *param_values)
 
 	bool eof = false;
 	struct osc* osc = NULL;
-	while(*src) {
+	while (*src) {
 		size_t n = 0;
-		char *l = 0;
+		char* l = 0;
 		char* eol = strchr(src, '\n');
-		if( eol ) {
+		if (eol) {
 			n = eol - src;
 		} else {
-			if( strlen(src) ) {
+			if (strlen(src)) {
 				strcpy(synth_error_message, "patch must end with a newline");
 				return 1;
 			}
 			break;
 		}
-		if( n >= (MAX_LINE-1) ) {
+		if (n >= (MAX_LINE - 1)) {
 			strcpy(synth_error_message, "line too long");
 			return 1;
 		}
 		memcpy(line, src, n);
 		line[n] = '\0';
-		src += n+1;
+		src += n + 1;
 
-		if( !*line ) {
+		if (!*line) {
 			// blank line
 			continue;
 		}
-		if( line[0] == '#' ) {
+		if (line[0] == '#') {
 			// ignore comment
 			continue;
 		}
@@ -277,14 +273,14 @@ int load_patch(char* src, struct osc* oscs, struct params *param_values)
 			if (parse_osc(s, &osc_type, &osc_num) != 0) {
 				// circle doesnt have sprintf
 				strcpy(synth_error_message, "failed to parse ");
-				strcpy(synth_error_message+strlen(synth_error_message), s);
+				strcpy(synth_error_message + strlen(synth_error_message), s);
 				return 1;
 			}
 
 			if (osc_num < 1 || osc_num > NUM_OSCS) {
 				// circle doesnt have sprintf
 				strcpy(synth_error_message, "expected osc number in range 1-10 while parsing ");
-				strcpy(synth_error_message+strlen(synth_error_message), s);
+				strcpy(synth_error_message + strlen(synth_error_message), s);
 				return 1;
 			}
 			osc = &oscs[osc_num_to_index(osc_num, osc_type)];
@@ -316,23 +312,23 @@ int load_patch(char* src, struct osc* oscs, struct params *param_values)
 		if (v == NULL) {
 			// printf("failed %s\n", line);
 			strcpy(synth_error_message, "failed to parse key=value pair ");
-			strcpy(synth_error_message+strlen(synth_error_message), line);
+			strcpy(synth_error_message + strlen(synth_error_message), line);
 			return 1;
 		}
-		n = v-line;
+		n = v - line;
 		memcpy(key, line, n);
 		key[n] = '\0';
-		strcpy(value, v+1);
-		
-		for( v = value; *v; v++ ) {
-			if( *v == '#' ) {
+		strcpy(value, v + 1);
+
+		for (v = value; *v; v++) {
+			if (*v == '#') {
 				*v = '\0';
 				v--;
 				break;
 			}
 		}
-		while(v >= value ) {
-			if( *v == ' ' ) {
+		while (v >= value) {
+			if (*v == ' ') {
 				*v = '\0';
 				v--;
 			} else {
@@ -340,8 +336,7 @@ int load_patch(char* src, struct osc* oscs, struct params *param_values)
 			}
 		}
 
-		 // printf("got key: %s; value: %s\n", key, value);
-
+		// printf("got key: %s; value: %s\n", key, value);
 
 		if (strcmp(key, "type") == 0) {
 			osc->wave_type = parse_wave_type(value);
@@ -356,21 +351,21 @@ int load_patch(char* src, struct osc* oscs, struct params *param_values)
 		} else if (strcmp(key, "detune") == 0) {
 			osc->detune = atof(value);
 		} else if (strcmp(key, "output") == 0) {
-			 if( parse_float_param(value, &osc->output_volume_m, param_values) ) {
+			if (parse_float_param(value, &osc->output_volume_m, param_values)) {
 				strcpy(synth_error_message, "failed to parse output ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "phase_input") == 0) {
 			if (parse_osc(value, &osc_type, &osc_num) != 0) {
 				strcpy(synth_error_message, "failed to parse phase_input ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 			int osc_i = osc_num_to_index(osc_num, osc_type);
 			if (osc_i < 0) {
 				strcpy(synth_error_message, "failed to convert phase_input ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 			osc->phase_input = &oscs[osc_i];
@@ -379,40 +374,40 @@ int load_patch(char* src, struct osc* oscs, struct params *param_values)
 		} else if (strcmp(key, "amp_input") == 0) {
 			if (parse_osc(value, &osc_type, &osc_num) != 0) {
 				strcpy(synth_error_message, "failed to parse amp_input ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 			int osc_i = osc_num_to_index(osc_num, osc_type);
 			if (osc_i < 0) {
 				strcpy(synth_error_message, "failed to convert amp_input ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 			osc->amp_input = &oscs[osc_i];
 		} else if (strcmp(key, "amp_input_m") == 0) {
 			osc->amp_input_m = atof(value);
 		} else if (strcmp(key, "attack") == 0) {
-			 if( parse_float_param(value, &osc->attack, param_values) ) {
+			if (parse_float_param(value, &osc->attack, param_values)) {
 				strcpy(synth_error_message, "failed to parse attack ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "decay") == 0) {
-			 if( parse_float_param(value, &osc->decay, param_values) ) {
+			if (parse_float_param(value, &osc->decay, param_values)) {
 				strcpy(synth_error_message, "failed to parse decay ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "sustain") == 0) {
-			if( parse_float_param(value, &osc->sustain, param_values) ) {
+			if (parse_float_param(value, &osc->sustain, param_values)) {
 				strcpy(synth_error_message, "failed to parse sustain ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "release") == 0) {
-			if( parse_float_param(value, &osc->release, param_values) ) {
+			if (parse_float_param(value, &osc->release, param_values)) {
 				strcpy(synth_error_message, "failed to parse release ");
-				strcpy(synth_error_message+strlen(synth_error_message), value);
+				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "pitch_m") == 0) {
