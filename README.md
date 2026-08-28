@@ -73,3 +73,7 @@ it might also be required to define SCREEN_HEADLESS under Config.mk
   cp config64.txt /path/to/mounted/sd-card/config.txt
   cd circle-app
   cp kernel8-rpi4.img /path/to/mounted/sd-card/
+
+# auto send patch on write under vim:
+
+  autocmd BufWritePost *.sound-patch !synth-send-patch %

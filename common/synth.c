@@ -66,7 +66,7 @@ void set_float_param(struct float_param* p, float v)
 	p->v = NULL;
 }
 
-int parse_float_param(const char* s, struct float_param* p, struct params* param_values)
+int parse_float_param(const char* s, struct float_param* p, struct osc* osc, struct params* param_values)
 {
 	bool float_found = false;
 	for (; isspace(*s); s++)
@@ -96,6 +96,10 @@ int parse_float_param(const char* s, struct float_param* p, struct params* param
 		p->v = &(param_values->pitch);
 	} else if (strcasecmp(next_s, "mod") == 0) {
 		p->v = &(param_values->mod);
+	} else if (strcasecmp(next_s, "key_freq") == 0) {
+		p->v = &(osc->key_freq);
+	} else if (strcasecmp(next_s, "velocity") == 0) {
+		p->v = &(osc->key_velocity);
 	} else if (strcasecmp(next_s, "c1") == 0) {
 		p->v = &(param_values->c1);
 	} else if (strcasecmp(next_s, "c2") == 0) {
@@ -190,6 +194,7 @@ float ads_level(float t, float attack, float attack_start, float decay, float su
 }
 float r_level(float t, float orig_vol, float release)
 {
+	release = MAX(release, 0.03); // TODO there's a bug where keys stop working when this is 0
 	if (t > release) {
 		return 0.f;
 	}
@@ -284,7 +289,10 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			osc->osc_type = osc_type;
 
 			// init defaults
-			set_float_param(&osc->freq_m, 1.0);
+			if (parse_float_param("1.0*key_freq", &osc->freq, osc, param_values)) {
+				strcpy(synth_error_message, "failed to init osc freq value ");
+				return 1;
+			}
 			set_float_param(&osc->drive, 1.0);
 			set_float_param(&osc->attack, ATTACK_MIN);
 			set_float_param(&osc->sustain, 1.0);
@@ -338,41 +346,31 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 		if (strcmp(key, "type") == 0) {
 			osc->wave_type = parse_wave_type(value);
 		} else if (strcmp(key, "freq") == 0) {
-			if (strcmp(value, "sync") == 0) {
-				osc->freq_sync = true;
-			} else {
-				if (parse_float_param(value, &osc->freq, param_values)) {
-					strcpy(synth_error_message, "failed to parse freq ");
-					strcpy(synth_error_message + strlen(synth_error_message), value);
-					return 1;
-				}
-			}
-		} else if (strcmp(key, "freq_m") == 0) {
-			if (parse_float_param(value, &osc->freq_m, param_values)) {
-				strcpy(synth_error_message, "failed to parse freq_m ");
+			if (parse_float_param(value, &osc->freq, osc, param_values)) {
+				strcpy(synth_error_message, "failed to parse freq ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "detune") == 0) {
-			if (parse_float_param(value, &osc->detune, param_values)) {
+			if (parse_float_param(value, &osc->detune, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse detune ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "detune2") == 0) { // TODO change float_param to support arithmatic, e.g. detune=0.3*lfo1+pitch
-			if (parse_float_param(value, &osc->detune2, param_values)) {
+			if (parse_float_param(value, &osc->detune2, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse detune2 ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "output") == 0) {
-			if (parse_float_param(value, &osc->output_volume_m, param_values)) {
+			if (parse_float_param(value, &osc->output_volume_m, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse output ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "drive") == 0) {
-			if (parse_float_param(value, &osc->drive, param_values)) {
+			if (parse_float_param(value, &osc->drive, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse drive ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
@@ -408,25 +406,25 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 		} else if (strcmp(key, "amp_input_m") == 0) {
 			osc->amp_input_m = atof(value);
 		} else if (strcmp(key, "attack") == 0) {
-			if (parse_float_param(value, &osc->attack, param_values)) {
+			if (parse_float_param(value, &osc->attack, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse attack ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "decay") == 0) {
-			if (parse_float_param(value, &osc->decay, param_values)) {
+			if (parse_float_param(value, &osc->decay, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse decay ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "sustain") == 0) {
-			if (parse_float_param(value, &osc->sustain, param_values)) {
+			if (parse_float_param(value, &osc->sustain, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse sustain ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "release") == 0) {
-			if (parse_float_param(value, &osc->release, param_values)) {
+			if (parse_float_param(value, &osc->release, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse release ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
@@ -446,7 +444,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		return;
 	}
 
-	float freq = get_float_param(&osc->freq) * get_float_param(&osc->freq_m);
+	float freq = get_float_param(&osc->freq);
 	if (freq <= 0.0) {
 		osc->output = 0.0f;
 		return;
@@ -548,6 +546,8 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		// osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->release * params->c4);
 		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, get_float_param(&osc->release));
 	}
+
+	osc->output *= osc->output_volume;
 }
 
 void get_key(struct key* keys, float freq, struct key** key, bool insert)

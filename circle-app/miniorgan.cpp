@@ -534,8 +534,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 	if (ucType == MIDI_NOTE_ON) {
 		assert(ucKeyNumber < 128);
 		float freq = s_KeyFrequency[ucKeyNumber];
-		tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
-		hackmsg.Append(tmp);
+		// tmp.Format("%f MIDI_NOTE_ON key=%d;", freq, ucKeyNumber);
+		// hackmsg.Append(tmp);
 		struct key* k = 0;
 		get_key(s_pThis->keys, freq, &k, TRUE);
 		if (k) {
@@ -551,7 +551,15 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			k->released_at = 0.0f;
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i];
-				set_float_param(&osc->freq, freq);
+
+				// this feels wrong -- the freq is should always be a float, never a pointer to a float
+				// if the user sets freq=sync, or freq=3.5*mod, or maybe even freq=1.5*sync, we should really just tie
+				// the sync keyword to point to the actual freq
+				// set_float_param(&osc->freq, freq);
+
+				osc->key_freq = freq;
+				osc->key_velocity = k->velocity;
+
 				if (keep_output) {
 					osc->output_volume_attack_start = osc->output_volume;
 				} else {
@@ -560,13 +568,14 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			}
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i + NUM_OSCS]; // LFOs are in the second set
-				if (osc->freq_sync) {
-					set_float_param(&osc->freq, freq);
-				}
+				osc->key_freq = freq;
+				osc->key_velocity = k->velocity;
 			}
 		}
 	} else if (ucType == MIDI_NOTE_OFF) {
 		float freq = s_KeyFrequency[ucKeyNumber];
+		// tmp.Format("%f MIDI_NOTE_OFF key=%d;", freq, ucKeyNumber);
+		// hackmsg.Append(tmp);
 		struct key* k = 0;
 		get_key(s_pThis->keys, freq, &k, FALSE);
 		if (k) {

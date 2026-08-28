@@ -44,9 +44,7 @@ struct float_param {
 
 struct osc {
 	float wave_pos;
-	bool freq_sync;
 	struct float_param freq;
-	struct float_param freq_m;
 	struct float_param detune;
 	struct float_param detune2; // TODO delete this once float_param supports referening multiple params
 	int osc_type;
@@ -62,10 +60,9 @@ struct osc {
 	struct float_param sustain; // level ranging from 0 to 1
 	struct float_param release; // time from sustain level to 0
 
-	// internal values
-	// float pressed_at; // TODO remove these
-	// float released_at;
-	// float velocity;
+	// these can be referenced by float_param
+	float key_freq;
+	float key_velocity;
 
 	float output_volume; // set by ARSD envolop calcs
 	float output_volume_at_release;
