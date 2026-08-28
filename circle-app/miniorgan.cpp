@@ -154,26 +154,13 @@ CMiniOrgan::CMiniOrgan(CInterruptSystem* pInterrupt, CI2CMaster* pI2CMaster)
 	m_nHighLevel = GetRangeMax() * VOLUME_PERCENT / 100;
 	m_nNullLevel = (m_nHighLevel + m_nLowLevel) / 2;
 	m_nDiffLevel = (m_nHighLevel - m_nLowLevel) / 2;
-	m_nCurrentLevel = m_nNullLevel;
 
 	CString tmp;
-
-	// hackmsg[0] = '\0';
 
 	chunkBuff = static_cast<u32*>(::operator new(CHUNK_BUF_NUM_ELEM * 4));
 
 	keys = 0;
 	synth_new(&keys);
-
-	// TODO move this into common
-	// size_t key_bytes = sizeof(struct key) * MAX_KEYS;
-	// size_t osc_bytes = sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES;
-	// keys = static_cast<struct key*>(::operator new(key_bytes));
-	// memset(keys, 0, key_bytes);
-	// for (size_t i = 0; i < MAX_KEYS; i++) {
-	// 	keys[i].oscs = static_cast<struct osc*>(::operator new(osc_bytes));
-	// 	memset(keys[i].oscs, 0, osc_bytes);
-	// }
 
 	LoadPatch(patch_contents);
 
@@ -564,7 +551,7 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			k->released_at = 0.0f;
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i];
-				osc->freq = freq;
+				set_float_param(&osc->freq, freq);
 				if (keep_output) {
 					osc->output_volume_attack_start = osc->output_volume;
 				} else {
@@ -574,7 +561,7 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i + NUM_OSCS]; // LFOs are in the second set
 				if (osc->freq_sync) {
-					osc->freq = freq;
+					set_float_param(&osc->freq, freq);
 				}
 			}
 		}

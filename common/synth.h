@@ -43,25 +43,24 @@ struct float_param {
 };
 
 struct osc {
-	float freq;
 	float wave_pos;
 	bool freq_sync;
-	float freq_m;
-	float detune;
+	struct float_param freq;
+	struct float_param freq_m;
+	struct float_param detune;
+	struct float_param detune2; // TODO delete this once float_param supports referening multiple params
 	int osc_type;
 	int wave_type;
 	float phase_input_m;
 	struct osc* phase_input;
 	float amp_input_m;
 	struct osc* amp_input;
+	struct float_param drive;
 	struct float_param output_volume_m;
 	struct float_param attack; // time from 0 to 1
 	struct float_param decay; // time from 1 to sustain level
 	struct float_param sustain; // level ranging from 0 to 1
 	struct float_param release; // time from sustain level to 0
-	float pitch_m; // if set, multiply pitch bend by this amount
-	float mod_freq_m; // if set, multiply modulation by this amount and apply it to the freq
-	float mod_output_m; // if set, multiply modulation by this amount and apply it to volume output
 
 	// internal values
 	// float pressed_at; // TODO remove these
@@ -105,6 +104,7 @@ void get_key(struct key* keys, float freq, struct key** key, bool insert);
 const char* load_patch_err();
 
 float get_float_param(struct float_param* p);
+void set_float_param(struct float_param* p, float v);
 
 // TODO remove this
 int osc_num_to_index(int osc_num, int osc_type);

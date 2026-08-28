@@ -1,5 +1,7 @@
 [vfo1]
-type=square
+type=sine
+detune=1.0*pitch
+drive=5.0*mod
 output=1.0
 attack=1.0*c1
 decay=1.0*c2

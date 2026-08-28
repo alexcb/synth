@@ -217,7 +217,6 @@ int osc_num_to_index(int osc_num, int osc_type)
 int load_patch(char* src, struct osc* oscs, struct params* param_values)
 {
 	synth_error_message[0] = '\0';
-	int n;
 
 	int osc_num;
 	int osc_type;
@@ -226,11 +225,9 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 	char key[MAX_LINE];
 	char value[MAX_LINE];
 
-	bool eof = false;
 	struct osc* osc = NULL;
 	while (*src) {
 		size_t n = 0;
-		char* l = 0;
 		char* eol = strchr(src, '\n');
 		if (eol) {
 			n = eol - src;
@@ -287,7 +284,8 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			osc->osc_type = osc_type;
 
 			// init defaults
-			osc->freq_m = 1.0;
+			set_float_param(&osc->freq_m, 1.0);
+			set_float_param(&osc->drive, 1.0);
 			set_float_param(&osc->attack, ATTACK_MIN);
 			set_float_param(&osc->sustain, 1.0);
 			set_float_param(&osc->decay, DECAY_MIN);
@@ -295,11 +293,10 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			osc->phase_input_m = 1.0;
 			osc->amp_input_m = 1.0;
 			if (osc->osc_type == OSC_TYPE_VFO) {
-				osc->freq_m = 1.0;
 				set_float_param(&osc->output_volume_m, 1.0);
 				osc->osc_type = WAVE_TYPE_SINE;
 			} else if (osc->osc_type == OSC_TYPE_LFO) {
-				osc->freq = 1.0;
+				set_float_param(&osc->freq, 1.0);
 			}
 
 			continue;
@@ -344,15 +341,39 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			if (strcmp(value, "sync") == 0) {
 				osc->freq_sync = true;
 			} else {
-				osc->freq = atof(value);
+				if (parse_float_param(value, &osc->freq, param_values)) {
+					strcpy(synth_error_message, "failed to parse freq ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
 			}
 		} else if (strcmp(key, "freq_m") == 0) {
-			osc->freq_m = atof(value);
+			if (parse_float_param(value, &osc->freq_m, param_values)) {
+				strcpy(synth_error_message, "failed to parse freq_m ");
+				strcpy(synth_error_message + strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "detune") == 0) {
-			osc->detune = atof(value);
+			if (parse_float_param(value, &osc->detune, param_values)) {
+				strcpy(synth_error_message, "failed to parse detune ");
+				strcpy(synth_error_message + strlen(synth_error_message), value);
+				return 1;
+			}
+		} else if (strcmp(key, "detune2") == 0) { // TODO change float_param to support arithmatic, e.g. detune=0.3*lfo1+pitch
+			if (parse_float_param(value, &osc->detune2, param_values)) {
+				strcpy(synth_error_message, "failed to parse detune2 ");
+				strcpy(synth_error_message + strlen(synth_error_message), value);
+				return 1;
+			}
 		} else if (strcmp(key, "output") == 0) {
 			if (parse_float_param(value, &osc->output_volume_m, param_values)) {
 				strcpy(synth_error_message, "failed to parse output ");
+				strcpy(synth_error_message + strlen(synth_error_message), value);
+				return 1;
+			}
+		} else if (strcmp(key, "drive") == 0) {
+			if (parse_float_param(value, &osc->drive, param_values)) {
+				strcpy(synth_error_message, "failed to parse drive ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
@@ -410,12 +431,6 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
-		} else if (strcmp(key, "pitch_m") == 0) {
-			osc->pitch_m = atof(value);
-		} else if (strcmp(key, "mod_freq_m") == 0) {
-			osc->mod_freq_m = atof(value);
-		} else if (strcmp(key, "mod_output_m") == 0) {
-			osc->mod_output_m = atof(value);
 		} else {
 			// printf("unhandled line %s\n", key);
 		}
@@ -431,13 +446,14 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		return;
 	}
 
-	float freq = osc->freq * osc->freq_m;
+	float freq = get_float_param(&osc->freq) * get_float_param(&osc->freq_m);
 	if (freq <= 0.0) {
 		osc->output = 0.0f;
 		return;
 	}
 
-	freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m + params->mod * osc->mod_freq_m + osc->detune);
+	// freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m + params->mod * osc->mod_freq_m + get_float_param(&osc->detune));
+	freq = exp2f(log2f(freq) + get_float_param(&osc->detune) + get_float_param(&osc->detune2));
 
 	if (osc->phase_input && osc->phase_input->wave_type) {
 		freq += osc->phase_input->output * osc->phase_input_m;
@@ -513,9 +529,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		osc->output *= (osc->amp_input->output + 1.0) / 2.0 * osc->amp_input_m;
 	}
 
-	if (osc->mod_output_m > 0.0f) {
-		osc->output *= osc->mod_output_m * params->mod;
-	}
+	osc->output *= get_float_param(&osc->drive);
 
 	if (osc->output > 1.0) {
 		osc->output = 1.0;

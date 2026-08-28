@@ -111,7 +111,6 @@ class CMiniOrgan : public SOUND_CLASS {
 	int m_nNullLevel;
 	int m_nDiffLevel;
 	int m_nHighLevel;
-	int m_nCurrentLevel;
 	unsigned long m_nSampleCount;
 	unsigned m_nPrevFrequency;
 	float m_nPitchBend;
