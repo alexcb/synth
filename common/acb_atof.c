@@ -45,7 +45,7 @@ float acb_strtof(const char* s, const char** remaining)
 	return negative ? -result : result;
 }
 
-float atof(const char* s)
+float acb_atof(const char* s)
 {
 	return acb_strtof(s, NULL);
 }

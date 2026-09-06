@@ -1,15 +1,11 @@
 #include "synth.h"
 #include "bad_rand.h"
+#include "parser.h"
 #include "sine_table.h"
 
-void foo(char* p)
-{
-	*p = 'f';
-}
-
 #ifdef __circle__
-#include "atof.h"
-#include "isspace.h"
+#include "acb_atof.h"
+#include "acb_isspace.h"
 #include <circle/alloc.h>
 #include <circle/util.h>
 
@@ -39,7 +35,7 @@ const char* load_patch_err()
 int synth_new(struct key** keys)
 {
 	size_t key_bytes = sizeof(struct key) * MAX_KEYS;
-	size_t osc_bytes = sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES;
+	size_t osc_bytes = sizeof(struct osc) * NUM_OSCS;
 	*keys = malloc(key_bytes); // static_cast<struct key*>(::operator new(key_bytes));
 	memset(*keys, 0, key_bytes);
 	for (size_t i = 0; i < MAX_KEYS; i++) {
@@ -55,74 +51,136 @@ void synth_clear(struct key* keys)
 		struct osc* p = keys[i].oscs;
 		memset(&(keys[i]), 0, sizeof(struct key));
 		keys[i].oscs = p;
-		memset(p, 0, sizeof(struct osc) * NUM_OSCS * NUM_OSC_TYPES);
+		memset(p, 0, sizeof(struct osc) * NUM_OSCS);
 	}
 }
 
 // set the param to a static value
-void set_float_param(struct float_param* p, float v)
+void set_float_param(parser_state* p, float v)
 {
-	p->m = v;
-	p->v = NULL;
+	parser_cleanup(p);
+	if (parser("1.0", p, NULL)) {
+		assert(0);
+	}
+	assert(p->ast_root->type == AST_FLOAT);
+	p->ast_root->f = v;
+	//(**node).type = AST_FLOAT;
+	//(**node).f = t.f;
+
+	// p->m = v;
+	// p->v = NULL;
 }
 
-int parse_float_param(const char* s, struct float_param* p, struct osc* osc, struct params* param_values)
+int parse_float_param(const char* s, parser_state* p, struct osc* osc, struct params* param_values)
 {
-	bool float_found = false;
-	for (; isspace(*s); s++)
-		;
-	const char* next_s = NULL;
-	p->m = acb_strtof(s, &next_s);
-	if (next_s == NULL) {
-		p->m = 1.0;
-	} else {
-		float_found = true;
-	}
-	for (; isspace(*next_s); next_s++)
-		;
-	if (float_found) {
-		if (*next_s == '\0') {
-			p->v = NULL;
-			return 0;
-		}
-		if (*next_s != '*') {
-			return 1;
-		}
-		next_s++;
-		for (; isspace(*next_s); next_s++)
-			;
-	}
-	if (strcasecmp(next_s, "pitch") == 0) {
-		p->v = &(param_values->pitch);
-	} else if (strcasecmp(next_s, "mod") == 0) {
-		p->v = &(param_values->mod);
-	} else if (strcasecmp(next_s, "key_freq") == 0) {
-		p->v = &(osc->key_freq);
-	} else if (strcasecmp(next_s, "velocity") == 0) {
-		p->v = &(osc->key_velocity);
-	} else if (strcasecmp(next_s, "c1") == 0) {
-		p->v = &(param_values->c1);
-	} else if (strcasecmp(next_s, "c2") == 0) {
-		p->v = &(param_values->c2);
-	} else if (strcasecmp(next_s, "c3") == 0) {
-		p->v = &(param_values->c3);
-	} else if (strcasecmp(next_s, "c4") == 0) {
-		p->v = &(param_values->c4);
-	} else {
+
+	variable_pointers vars = {
+		.velocity = &(osc->key_velocity),
+		.key_freq = &(osc->key_freq),
+		.pitch = &(param_values->pitch),
+		.mod = &(param_values->mod),
+		.c1 = &(param_values->c1),
+		.c2 = &(param_values->c2),
+		.c3 = &(param_values->c3),
+		.c4 = &(param_values->c4),
+	};
+
+	if (parser(s, p, &vars)) {
 		return 1;
 	}
-
-	// TODO support an offset value, e.g. output=0.5*mod+0.5
-
 	return 0;
+	// float result = eval(p.ast_root);
+	// printf("%f\n", result);
+
+	// bool float_found = false;
+	// for (; acb_isspace(*s); s++)
+	// 	;
+	// const char* next_s = NULL;
+	// p->m = acb_strtof(s, &next_s);
+	// if (next_s == NULL) {
+	// 	p->m = 1.0;
+	// } else {
+	// 	float_found = true;
+	// }
+	// for (; acb_isspace(*next_s); next_s++)
+	// 	;
+	// if (float_found) {
+	// 	if (*next_s == '\0') {
+	// 		p->v = NULL;
+	// 		p->a = 0.0;
+	// 		return 0;
+	// 	}
+	// 	if (*next_s != '*') {
+	// 		return 1;
+	// 	}
+	// 	next_s++;
+	// 	for (; acb_isspace(*next_s); next_s++)
+	// 		;
+	// }
+	// char name[1024];
+	// const char* last = NULL;
+	// for (int i = 0;; i++) {
+	// 	name[i] = next_s[i];
+	// 	if (name[i] == ' ' || name[i] == '+') {
+	// 		name[i] = '\0';
+	// 		last = next_s + i + 1;
+	// 		break;
+	// 	}
+	// 	if (name[i] == '\0') {
+	// 		break;
+	// 	}
+	// }
+	// if (strcasecmp(name, "pitch") == 0) {
+	// 	p->v = &(param_values->pitch);
+	// } else if (strcasecmp(name, "mod") == 0) {
+	// 	p->v = &(param_values->mod);
+	// } else if (strcasecmp(name, "key_freq") == 0) {
+	// 	p->v = &(osc->key_freq);
+	// } else if (strcasecmp(name, "velocity") == 0) {
+	// 	p->v = &(osc->key_velocity);
+	// } else if (strcasecmp(name, "c1") == 0) {
+	// 	p->v = &(param_values->c1);
+	// } else if (strcasecmp(name, "c2") == 0) {
+	// 	p->v = &(param_values->c2);
+	// } else if (strcasecmp(name, "c3") == 0) {
+	// 	p->v = &(param_values->c3);
+	// } else if (strcasecmp(name, "c4") == 0) {
+	// 	p->v = &(param_values->c4);
+	// } else {
+	// 	return 1;
+	// }
+
+	// if (!last) {
+	// 	p->a = 0.0;
+	// 	return 0;
+	// }
+
+	// for (; acb_isspace(*last); last++)
+	// 	;
+
+	// // TODO should also support a -, but all this code needs to be reworked to return an AST instead
+	// if (last[0] != '+') {
+	// 	return 0;
+	// }
+	// last++;
+	// for (; acb_isspace(*last); last++)
+	// 	;
+
+	// p->a = acb_strtof(last, NULL);
+
+	// return 0;
 }
 
-float get_float_param(struct float_param* p)
+float get_float_param(parser_state* p)
 {
-	if (p->v) {
-		return *(p->v) * p->m;
+	if (p == NULL || p->ast_root == NULL) {
+		return 0.0f;
 	}
-	return p->m;
+	return eval(p->ast_root);
+	// if (p->v) {
+	//	return *(p->v) * p->m + p->a;
+	// }
+	// return p->m + p->a;
 }
 
 int parse_wave_type(const char* s)
@@ -207,14 +265,15 @@ int osc_num_to_index(int osc_num, int osc_type)
 	if (osc_num < 1 || osc_num > NUM_OSCS) {
 		assert(0);
 	}
-	int i = (osc_num - 1);
-	if (osc_type == OSC_TYPE_LFO) {
-		i += NUM_OSCS;
-	}
-	if (i >= NUM_OSCS * NUM_OSC_TYPES) {
-		assert(0);
-	}
-	return i;
+	return (osc_num - 1);
+	// int i = (osc_num - 1);
+	// if (osc_type == OSC_TYPE_LFO) {
+	//	i += NUM_OSCS;
+	// }
+	// if (i >= NUM_OSCS * NUM_OSC_TYPES) {
+	//	assert(0);
+	// }
+	// return i;
 }
 
 #define MAX_LINE 1024
@@ -286,6 +345,12 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 				return 1;
 			}
 			osc = &oscs[osc_num_to_index(osc_num, osc_type)];
+			if (osc->osc_type != OSC_TYPE_NONE) {
+				// TODO I need a sprintf to make these errors better
+				strcpy(synth_error_message, "osc already defined ");
+				strcpy(synth_error_message + strlen(synth_error_message), s);
+				return 1;
+			}
 			osc->osc_type = osc_type;
 
 			// init defaults
@@ -389,7 +454,7 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			}
 			osc->phase_input = &oscs[osc_i];
 		} else if (strcmp(key, "phase_input_m") == 0) {
-			osc->phase_input_m = atof(value);
+			osc->phase_input_m = acb_atof(value);
 		} else if (strcmp(key, "amp_input") == 0) {
 			if (parse_osc(value, &osc_type, &osc_num) != 0) {
 				strcpy(synth_error_message, "failed to parse amp_input ");
@@ -404,7 +469,7 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			}
 			osc->amp_input = &oscs[osc_i];
 		} else if (strcmp(key, "amp_input_m") == 0) {
-			osc->amp_input_m = atof(value);
+			osc->amp_input_m = acb_atof(value);
 		} else if (strcmp(key, "attack") == 0) {
 			if (parse_float_param(value, &osc->attack, osc, param_values)) {
 				strcpy(synth_error_message, "failed to parse attack ");
@@ -536,18 +601,20 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 
 	// ASDR filtering
-	if (key->pressed_at > key->released_at) {
-		float time_since_press = t - key->pressed_at;
-		// osc->output_volume = ads_level(time_since_press, osc->attack * params->c1, osc->output_volume_attack_start, osc->decay * params->c2, osc->sustain * params->c3);
-		osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
-		osc->output_volume_at_release = osc->output_volume;
-	} else if (key->released_at > key->pressed_at) {
-		float time_since_release = t - key->released_at;
-		// osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, osc->release * params->c4);
-		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, get_float_param(&osc->release));
+	if (osc->osc_type == OSC_TYPE_VFO) {
+		if (key->pressed_at > key->released_at) {
+			float time_since_press = t - key->pressed_at;
+			osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
+			osc->output_volume_at_release = osc->output_volume;
+		} else if (key->released_at > key->pressed_at) {
+			float time_since_release = t - key->released_at;
+			osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, get_float_param(&osc->release));
+			if (osc->output_volume == 0.f) {
+				osc->active = false;
+			}
+		}
+		osc->output *= osc->output_volume;
 	}
-
-	osc->output *= osc->output_volume;
 }
 
 void get_key(struct key* keys, float freq, struct key** key, bool insert)

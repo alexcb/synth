@@ -4,6 +4,7 @@ extern "C" {
 
 #pragma once
 
+#include "parser.h"
 #include <stdbool.h>
 
 #define WAVE_TYPE_NONE 0
@@ -16,14 +17,14 @@ extern "C" {
 #define WAVE_TYPE_PULSE25 7
 #define WAVE_TYPE_RAND 8
 
+#define OSC_TYPE_NONE 0
 #define OSC_TYPE_VFO 1
 #define OSC_TYPE_LFO 2
 
 #define ATTACK_MIN 0.01
 #define DECAY_MIN 0.01
 
-#define NUM_OSCS 3
-#define NUM_OSC_TYPES 2
+#define NUM_OSCS 5
 
 #define MAX_KEYS 8
 
@@ -37,33 +38,35 @@ extern "C" {
 // TODO remove this
 void foo(char* p);
 
-struct float_param {
-	float m;
-	float* v;
-};
+// parser_state {
+//	float m;
+//	float* v;
+//	float a;
+// };
 
 struct osc {
 	float wave_pos;
-	struct float_param freq;
-	struct float_param detune;
-	struct float_param detune2; // TODO delete this once float_param supports referening multiple params
+	parser_state freq;
+	parser_state detune;
+	parser_state detune2; // TODO delete this once float_param supports referening multiple params
 	int osc_type;
 	int wave_type;
 	float phase_input_m;
 	struct osc* phase_input;
 	float amp_input_m;
 	struct osc* amp_input;
-	struct float_param drive;
-	struct float_param output_volume_m;
-	struct float_param attack; // time from 0 to 1
-	struct float_param decay; // time from 1 to sustain level
-	struct float_param sustain; // level ranging from 0 to 1
-	struct float_param release; // time from sustain level to 0
+	parser_state drive;
+	parser_state output_volume_m;
+	parser_state attack; // time from 0 to 1
+	parser_state decay; // time from 1 to sustain level
+	parser_state sustain; // level ranging from 0 to 1
+	parser_state release; // time from sustain level to 0
 
 	// these can be referenced by float_param
 	float key_freq;
 	float key_velocity;
 
+	bool active;
 	float output_volume; // set by ARSD envolop calcs
 	float output_volume_at_release;
 	float output_volume_attack_start;
@@ -100,8 +103,8 @@ void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
 const char* load_patch_err();
 
-float get_float_param(struct float_param* p);
-void set_float_param(struct float_param* p, float v);
+float get_float_param(parser_state* p);
+void set_float_param(parser_state* p, float v);
 
 // TODO remove this
 int osc_num_to_index(int osc_num, int osc_type);

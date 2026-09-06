@@ -1,6 +1,6 @@
-#include "isspace.h"
+#include "acb_isspace.h"
 
-int isspace(char c)
+int acb_isspace(char c)
 {
 	if (c == ' ' || // Space (0x20)
 	    c == '\t' || // Horizontal Tab (0x09)

@@ -2,7 +2,9 @@
 extern "C" {
 #endif
 
-int isspace(char c);
+#pragma once
+
+int acb_isspace(char c);
 
 #ifdef __cplusplus
 }

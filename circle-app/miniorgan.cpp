@@ -210,7 +210,7 @@ void CMiniOrgan::LoadPatch(const char* patch)
 	}
 
 	for (int i = 0; i < MAX_KEYS; i++) {
-		for (int j = 0; j < NUM_OSCS * NUM_OSC_TYPES; j++) {
+		for (int j = 0; j < NUM_OSCS; j++) {
 			struct osc* osc = &keys[i].oscs[j];
 			if (osc->osc_type == OSC_TYPE_VFO) {
 				tmp.Format("%d,%d is VFO type; ", i, j);
@@ -557,20 +557,23 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 				// the sync keyword to point to the actual freq
 				// set_float_param(&osc->freq, freq);
 
-				osc->key_freq = freq;
-				osc->key_velocity = k->velocity;
-
-				if (keep_output) {
-					osc->output_volume_attack_start = osc->output_volume;
-				} else {
-					osc->output_volume_attack_start = 0;
+				if (osc->osc_type == OSC_TYPE_VFO) {
+					osc->key_freq = freq;
+					osc->key_velocity = k->velocity;
+					if (keep_output && osc->active) {
+						osc->output_volume_attack_start = osc->output_volume;
+					} else {
+						osc->output_volume_attack_start = 0;
+					}
+					osc->active = true;
 				}
 			}
-			for (int i = 0; i < NUM_OSCS; i++) {
-				struct osc* osc = &k->oscs[i + NUM_OSCS]; // LFOs are in the second set
-				osc->key_freq = freq;
-				osc->key_velocity = k->velocity;
-			}
+			// remove this, since LFO and VFOs are stored together now
+			// for (int i = 0; i < NUM_OSCS; i++) {
+			// 	struct osc* osc = &k->oscs[i + NUM_OSCS]; // LFOs are in the second set
+			// 	osc->key_freq = freq;
+			// 	osc->key_velocity = k->velocity;
+			// }
 		}
 	} else if (ucType == MIDI_NOTE_OFF) {
 		float freq = s_KeyFrequency[ucKeyNumber];

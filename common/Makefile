@@ -20,7 +20,7 @@
 
 CIRCLEHOME = ../circle
 
-OBJS	= synth.o atof.o bad_rand.o isspace.o
+OBJS	= parser.o synth.o acb_atof.o bad_rand.o acb_isspace.o
 
 libcommonsynth.a: $(OBJS)
 	@echo "  AR    $@"
