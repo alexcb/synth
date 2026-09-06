@@ -356,10 +356,10 @@ void CMiniOrgan::set_knobs()
 {
 
 	// range from 0.0 (never changes) to 1.0 (instant change)
-	// const float freq_smoothing = 0.0001f;
-	// s_pThis->voice_manager.params->pitch = m_nPitchBend * freq_smoothing + s_pThis->voice_manager.params->pitch * (1.0f - freq_smoothing);
+	const float freq_smoothing = 0.25f;
+	s_pThis->voice_manager.params->pitch = m_nPitchBend * freq_smoothing + s_pThis->voice_manager.params->pitch * (1.0f - freq_smoothing);
+	// s_pThis->voice_manager.params->pitch = m_nPitchBend;
 
-	s_pThis->voice_manager.params->pitch = m_nPitchBend;
 	s_pThis->voice_manager.params->mod = m_modulation;
 	s_pThis->voice_manager.params->c1 = m_knob1;
 	s_pThis->voice_manager.params->c2 = m_knob2;

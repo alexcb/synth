@@ -47,7 +47,6 @@ VoiceManager::VoiceManager(CMemorySystem* pMemorySystem)
 	for (unsigned nCore = 0; nCore < CORES; nCore++) {
 		m_CoreStatus[nCore] = CoreStatusInit;
 
-		pitchwheel[nCore] = 0.0f;
 		m_fOutputLevel[nCore] = static_cast<float*>(::operator new(CHUNK_SIZE * sizeof(float)));
 	}
 }
@@ -111,35 +110,11 @@ void VoiceManager::produce_keys(unsigned nCore)
 	const int start = nCore * (MAX_KEYS / CORES);
 	const int end = (nCore + 1) * (MAX_KEYS / CORES);
 
-	struct params thread_param;
-
 	const float dt = 1.f / SAMPLE_RATE;
 
 	for (int chunk_i = 0; chunk_i < 1024; chunk_i++) {
 		float t = ((float)tick) / SAMPLE_RATE;
 		tick++;
-
-		// It's chirping
-		// const float freq_smoothing = 0.98f;
-		// const float tolerance = 1e-10f;
-		// if ((pitchwheel[nCore] - params->pitch) > tolerance || (params->pitch - pitchwheel[nCore]) > tolerance) {
-		// 	pitchwheel[nCore] = pitchwheel[nCore] * freq_smoothing + params->pitch * (1.0f - freq_smoothing);
-		// } else {
-		// 	pitchwheel[nCore] = params->pitch;
-		// }
-		// thread_param.pitch = pitchwheel[nCore];
-
-		// const float tolerance = 1e-2f; // TODO change this to 1e6 (to effectively disable it) and see if this slow ramp up time is actually needed
-		// const float delta = tolerance / 2.f;
-		// const float diff = pitchwheel[nCore] - params->pitch;
-		// if (diff > tolerance) {
-		//	pitchwheel[nCore] -= delta;
-		// } else if (-diff > tolerance) {
-		//	pitchwheel[nCore] += delta;
-		// } else {
-		//	pitchwheel[nCore] = params->pitch;
-		// }
-		// thread_param.pitch = pitchwheel[nCore];
 
 		float output = 0.0f;
 		for (int i = start; i < end; i++) {
@@ -150,15 +125,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 			bool done = true;
 			for (int j = 0; j < NUM_OSCS; j++) {
 				struct osc* osc = &k->oscs[j];
-
-				// TODO maybe I can deleted all this moving average code now?
-				// osc_set_output(k, osc, &thread_param, t, dt);
-
-				// CLogger::Get()->Write("VOICEMAN", LogNotice, "osc_set_output %d called", j);
-				// float freq = get_float_param(&osc->freq);
-				// CLogger::Get()->Write("VOICEMAN", LogNotice, "osc_set_output %d called on freq %f", j, freq);
 				osc_set_output(k, osc, params, t, dt);
-				// CLogger::Get()->Write("VOICEMAN", LogNotice, "osc_set_output %d returned", j);
 				if (osc->osc_type == OSC_TYPE_VFO) {
 					// if( osc->output > 0.0f ) {
 					//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u output=%f", t, nCore, k->freq, i, osc->output);

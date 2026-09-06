@@ -1,6 +1,7 @@
 [vfo1]
 type=square
 freq=key_freq
+detune=pitch*0.08
 output=1.0
 attack=0.001
 decay=0.001
