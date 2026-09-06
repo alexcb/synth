@@ -7,15 +7,16 @@ uint32_t bad_rand()
 	return bad_rand_val;
 }
 
+// returns a random unsigned int between 0 and n, normally centered around n/2
 uint32_t bad_normal(uint32_t n)
 {
-	return (bad_rand() % n + bad_rand() % n) / 2;
+	return (bad_rand() % n + bad_rand() % n + bad_rand() % n + bad_rand() % n + bad_rand() % n) / 5;
 }
 
 // returns a random float between -1 and 1, normally centered around 0
 float bad_normalf()
 {
-	return bad_normal(2000) / 1000.f - 1000.f;
+	return ((float)bad_normal(200) - 100.f) / 100.f;
 }
 
 // returns a random float between 0 and 1

@@ -71,18 +71,23 @@ void set_float_param(parser_state* p, float v)
 	// p->v = NULL;
 }
 
-int parse_float_param(const char* s, parser_state* p, struct osc* osc, struct params* param_values)
+int parse_float_param(const char* s, parser_state* p, struct osc* osc, struct params* param_values, struct key* key_param_values)
 {
 
 	variable_pointers vars = {
-		.velocity = &(osc->key_velocity),
-		.key_freq = &(osc->key_freq),
+		.velocity = &(key_param_values->velocity),
+		.key_freq = &(key_param_values->freq),
 		.pitch = &(param_values->pitch),
 		.mod = &(param_values->mod),
 		.c1 = &(param_values->c1),
 		.c2 = &(param_values->c2),
 		.c3 = &(param_values->c3),
 		.c4 = &(param_values->c4),
+		.osc1 = &(key_param_values->oscs[0].output), // TODO: dont have these hardcoded since the max num is defined as a macro const
+		.osc2 = &(key_param_values->oscs[1].output),
+		.osc3 = &(key_param_values->oscs[2].output),
+		.osc4 = &(key_param_values->oscs[3].output),
+		.osc5 = &(key_param_values->oscs[4].output),
 	};
 
 	if (parser(s, p, &vars)) {
@@ -209,23 +214,22 @@ int parse_wave_type(const char* s)
 	if (strcasecmp(s, "pulse25") == 0) {
 		return WAVE_TYPE_PULSE25;
 	}
-	if (strcasecmp(s, "random") == 0) {
-		return WAVE_TYPE_RAND;
+	if (strcasecmp(s, "random_uniform") == 0) {
+		return WAVE_TYPE_RAND_UNIFORM;
+	}
+	if (strcasecmp(s, "random_normal") == 0) {
+		return WAVE_TYPE_RAND_NORMAL;
 	}
 	// fprintf(stderr, "unknown wave type: %s\n", s);
 	return 0;
 }
 
-int parse_osc(const char* s, int* osc_type, int* n)
+int parse_osc(const char* s, int* n)
 {
 	if (strlen(s) < 4) {
 		return 1;
 	}
-	if (strncmp(s, "vfo", 3) == 0) {
-		*osc_type = OSC_TYPE_VFO;
-	} else if (strncmp(s, "lfo", 3) == 0) {
-		*osc_type = OSC_TYPE_LFO;
-	} else {
+	if (strncmp(s, "osc", 3) != 0) {
 		return 1;
 	}
 	s += 3;
@@ -260,25 +264,17 @@ float r_level(float t, float orig_vol, float release)
 }
 
 // osc_num is from 1 to NUM_OSCS (not 0-indexed)
-int osc_num_to_index(int osc_num, int osc_type)
+int osc_num_to_index(int osc_num)
 {
 	if (osc_num < 1 || osc_num > NUM_OSCS) {
 		assert(0);
 	}
 	return (osc_num - 1);
-	// int i = (osc_num - 1);
-	// if (osc_type == OSC_TYPE_LFO) {
-	//	i += NUM_OSCS;
-	// }
-	// if (i >= NUM_OSCS * NUM_OSC_TYPES) {
-	//	assert(0);
-	// }
-	// return i;
 }
 
 #define MAX_LINE 1024
 
-int load_patch(char* src, struct osc* oscs, struct params* param_values)
+int load_patch(char* src, struct osc* oscs, struct params* param_values, struct key* key_param_values)
 {
 	synth_error_message[0] = '\0';
 
@@ -331,7 +327,7 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			line[n - 1] = '\0';
 			char* s = &line[1];
 
-			if (parse_osc(s, &osc_type, &osc_num) != 0) {
+			if (parse_osc(s, &osc_num) != 0) {
 				// circle doesnt have sprintf
 				strcpy(synth_error_message, "failed to parse ");
 				strcpy(synth_error_message + strlen(synth_error_message), s);
@@ -344,17 +340,16 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 				strcpy(synth_error_message + strlen(synth_error_message), s);
 				return 1;
 			}
-			osc = &oscs[osc_num_to_index(osc_num, osc_type)];
-			if (osc->osc_type != OSC_TYPE_NONE) {
+			osc = &oscs[osc_num_to_index(osc_num)];
+			if (osc->wave_type != WAVE_TYPE_NONE) {
 				// TODO I need a sprintf to make these errors better
 				strcpy(synth_error_message, "osc already defined ");
 				strcpy(synth_error_message + strlen(synth_error_message), s);
 				return 1;
 			}
-			osc->osc_type = osc_type;
 
 			// init defaults
-			if (parse_float_param("1.0*key_freq", &osc->freq, osc, param_values)) {
+			if (parse_float_param("1.0*key_freq", &osc->freq, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to init osc freq value ");
 				return 1;
 			}
@@ -365,12 +360,8 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 			set_float_param(&osc->release, 0.0);
 			osc->phase_input_m = 1.0;
 			osc->amp_input_m = 1.0;
-			if (osc->osc_type == OSC_TYPE_VFO) {
-				set_float_param(&osc->output_volume_m, 1.0);
-				osc->osc_type = WAVE_TYPE_SINE;
-			} else if (osc->osc_type == OSC_TYPE_LFO) {
-				set_float_param(&osc->freq, 1.0);
-			}
+			set_float_param(&osc->output_volume_m, 1.0);
+			osc->wave_type = WAVE_TYPE_SINE;
 
 			continue;
 		}
@@ -411,42 +402,42 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 		if (strcmp(key, "type") == 0) {
 			osc->wave_type = parse_wave_type(value);
 		} else if (strcmp(key, "freq") == 0) {
-			if (parse_float_param(value, &osc->freq, osc, param_values)) {
+			if (parse_float_param(value, &osc->freq, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse freq ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "detune") == 0) {
-			if (parse_float_param(value, &osc->detune, osc, param_values)) {
+			if (parse_float_param(value, &osc->detune, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse detune ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "detune2") == 0) { // TODO change float_param to support arithmatic, e.g. detune=0.3*lfo1+pitch
-			if (parse_float_param(value, &osc->detune2, osc, param_values)) {
+			if (parse_float_param(value, &osc->detune2, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse detune2 ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "output") == 0) {
-			if (parse_float_param(value, &osc->output_volume_m, osc, param_values)) {
+			if (parse_float_param(value, &osc->output_volume_m, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse output ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "drive") == 0) {
-			if (parse_float_param(value, &osc->drive, osc, param_values)) {
+			if (parse_float_param(value, &osc->drive, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse drive ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "phase_input") == 0) {
-			if (parse_osc(value, &osc_type, &osc_num) != 0) {
+			if (parse_osc(value, &osc_num) != 0) {
 				strcpy(synth_error_message, "failed to parse phase_input ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
-			int osc_i = osc_num_to_index(osc_num, osc_type);
+			int osc_i = osc_num_to_index(osc_num);
 			if (osc_i < 0) {
 				strcpy(synth_error_message, "failed to convert phase_input ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
@@ -456,12 +447,12 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 		} else if (strcmp(key, "phase_input_m") == 0) {
 			osc->phase_input_m = acb_atof(value);
 		} else if (strcmp(key, "amp_input") == 0) {
-			if (parse_osc(value, &osc_type, &osc_num) != 0) {
+			if (parse_osc(value, &osc_num) != 0) {
 				strcpy(synth_error_message, "failed to parse amp_input ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
-			int osc_i = osc_num_to_index(osc_num, osc_type);
+			int osc_i = osc_num_to_index(osc_num);
 			if (osc_i < 0) {
 				strcpy(synth_error_message, "failed to convert amp_input ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
@@ -471,25 +462,25 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values)
 		} else if (strcmp(key, "amp_input_m") == 0) {
 			osc->amp_input_m = acb_atof(value);
 		} else if (strcmp(key, "attack") == 0) {
-			if (parse_float_param(value, &osc->attack, osc, param_values)) {
+			if (parse_float_param(value, &osc->attack, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse attack ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "decay") == 0) {
-			if (parse_float_param(value, &osc->decay, osc, param_values)) {
+			if (parse_float_param(value, &osc->decay, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse decay ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "sustain") == 0) {
-			if (parse_float_param(value, &osc->sustain, osc, param_values)) {
+			if (parse_float_param(value, &osc->sustain, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse sustain ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "release") == 0) {
-			if (parse_float_param(value, &osc->release, osc, param_values)) {
+			if (parse_float_param(value, &osc->release, osc, param_values, key_param_values)) {
 				strcpy(synth_error_message, "failed to parse release ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
@@ -581,9 +572,12 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		break;
 	}
 
-	case WAVE_TYPE_RAND: {
-		// osc->output = bad_normalf();
-		osc->output = bad_randf();
+	case WAVE_TYPE_RAND_UNIFORM: {
+		osc->output = bad_randf() * 2.0 - 1.0;
+		break;
+	}
+	case WAVE_TYPE_RAND_NORMAL: {
+		osc->output = bad_normalf();
 		break;
 	}
 	}
@@ -601,20 +595,18 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 
 	// ASDR filtering
-	if (osc->osc_type == OSC_TYPE_VFO) {
-		if (key->pressed_at > key->released_at) {
-			float time_since_press = t - key->pressed_at;
-			osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
-			osc->output_volume_at_release = osc->output_volume;
-		} else if (key->released_at > key->pressed_at) {
-			float time_since_release = t - key->released_at;
-			osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, get_float_param(&osc->release));
-			if (osc->output_volume == 0.f) {
-				osc->active = false;
-			}
+	if (key->pressed_at > key->released_at) {
+		float time_since_press = t - key->pressed_at;
+		osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
+		osc->output_volume_at_release = osc->output_volume;
+	} else if (key->released_at > key->pressed_at) {
+		float time_since_release = t - key->released_at;
+		osc->output_volume = r_level(time_since_release, osc->output_volume_at_release, get_float_param(&osc->release));
+		if (osc->output_volume == 0.f) {
+			osc->active = false;
 		}
-		osc->output *= osc->output_volume;
 	}
+	osc->output *= osc->output_volume;
 }
 
 void get_key(struct key* keys, float freq, struct key** key, bool insert)

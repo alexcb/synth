@@ -152,6 +152,26 @@ int resolve_variable_address(parser_state* P, const char* s, int strlen, float**
 		*memory_address = P->vars->c4;
 		return 0;
 	}
+	if (strncmp(s, "osc1", strlen) == 0) {
+		*memory_address = P->vars->osc1;
+		return 0;
+	}
+	if (strncmp(s, "osc2", strlen) == 0) {
+		*memory_address = P->vars->osc2;
+		return 0;
+	}
+	if (strncmp(s, "osc3", strlen) == 0) {
+		*memory_address = P->vars->osc3;
+		return 0;
+	}
+	if (strncmp(s, "osc4", strlen) == 0) {
+		*memory_address = P->vars->osc4;
+		return 0;
+	}
+	if (strncmp(s, "osc5", strlen) == 0) {
+		*memory_address = P->vars->osc5;
+		return 0;
+	}
 	// printf("failed to lookup %.*s\n", strlen, s);
 	return 1;
 }

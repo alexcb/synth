@@ -15,7 +15,8 @@ extern "C" {
 #define WAVE_TYPE_SQUARE 5
 #define WAVE_TYPE_PULSE12 6
 #define WAVE_TYPE_PULSE25 7
-#define WAVE_TYPE_RAND 8
+#define WAVE_TYPE_RAND_UNIFORM 8
+#define WAVE_TYPE_RAND_NORMAL 9
 
 #define OSC_TYPE_NONE 0
 #define OSC_TYPE_VFO 1
@@ -24,6 +25,7 @@ extern "C" {
 #define ATTACK_MIN 0.01
 #define DECAY_MIN 0.01
 
+// IMPORTANT: leave this as 5, since it's hardcoded in synth.c
 #define NUM_OSCS 5
 
 #define MAX_KEYS 8
@@ -49,7 +51,6 @@ struct osc {
 	parser_state freq;
 	parser_state detune;
 	parser_state detune2; // TODO delete this once float_param supports referening multiple params
-	int osc_type;
 	int wave_type;
 	float phase_input_m;
 	struct osc* phase_input;
@@ -92,12 +93,22 @@ struct params {
 	float c4;
 };
 
+// struct key_params {
+//	float velocity;
+//	float freq;
+//	float osc1;
+//	float osc2;
+//	float osc3;
+//	float osc4;
+//	float osc5;
+// };
+
 int synth_new(struct key** keys);
 void synth_clear(struct key* keys);
 
 int parse_wave_type(const char* s);
-int parse_osc(const char* s, int* osc_type, int* n);
-int load_patch(char* src, struct osc* oscs, struct params* param_values);
+int parse_osc(const char* s, int* n);
+int load_patch(char* src, struct osc* oscs, struct params* param_values, struct key* key);
 void osc_set_output(struct key* key, struct osc* osc, struct params* params, float t, float dt);
 void get_key(struct key* keys, float freq, struct key** key, bool insert);
 
@@ -107,7 +118,7 @@ float get_float_param(parser_state* p);
 void set_float_param(parser_state* p, float v);
 
 // TODO remove this
-int osc_num_to_index(int osc_num, int osc_type);
+int osc_num_to_index(int osc_num);
 
 #ifdef __cplusplus
 }

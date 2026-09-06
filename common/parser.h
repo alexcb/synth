@@ -61,6 +61,11 @@ typedef struct {
 	float* c2;
 	float* c3;
 	float* c4;
+	float* osc1;
+	float* osc2;
+	float* osc3;
+	float* osc4;
+	float* osc5;
 } variable_pointers;
 
 typedef struct {

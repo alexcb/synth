@@ -202,20 +202,10 @@ void CMiniOrgan::LoadPatch(const char* patch)
 		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
 		hackmsg.Append(tmp);
 		strcpy(patch_contents_copy, patch);
-		if (load_patch(patch_contents_copy, keys[i].oscs, s_pThis->voice_manager.params) != 0) {
+		if (load_patch(patch_contents_copy, keys[i].oscs, s_pThis->voice_manager.params, &(keys[i])) != 0) {
 			tmp.Format("loading patch for key %p failed: %s;", &keys[i], load_patch_err());
 			hackmsg.Append(tmp);
 			return;
-		}
-	}
-
-	for (int i = 0; i < MAX_KEYS; i++) {
-		for (int j = 0; j < NUM_OSCS; j++) {
-			struct osc* osc = &keys[i].oscs[j];
-			if (osc->osc_type == OSC_TYPE_VFO) {
-				tmp.Format("%d,%d is VFO type; ", i, j);
-				hackmsg.Append(tmp);
-			}
 		}
 	}
 
@@ -552,28 +542,17 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i];
 
-				// this feels wrong -- the freq is should always be a float, never a pointer to a float
-				// if the user sets freq=sync, or freq=3.5*mod, or maybe even freq=1.5*sync, we should really just tie
-				// the sync keyword to point to the actual freq
-				// set_float_param(&osc->freq, freq);
+				// TODO remove these, since they are attached via the key struct
+				osc->key_freq = freq;
+				osc->key_velocity = k->velocity;
 
-				if (osc->osc_type == OSC_TYPE_VFO) {
-					osc->key_freq = freq;
-					osc->key_velocity = k->velocity;
-					if (keep_output && osc->active) {
-						osc->output_volume_attack_start = osc->output_volume;
-					} else {
-						osc->output_volume_attack_start = 0;
-					}
-					osc->active = true;
+				if (keep_output && osc->active) {
+					osc->output_volume_attack_start = osc->output_volume;
+				} else {
+					osc->output_volume_attack_start = 0;
 				}
+				osc->active = true;
 			}
-			// remove this, since LFO and VFOs are stored together now
-			// for (int i = 0; i < NUM_OSCS; i++) {
-			// 	struct osc* osc = &k->oscs[i + NUM_OSCS]; // LFOs are in the second set
-			// 	osc->key_freq = freq;
-			// 	osc->key_velocity = k->velocity;
-			// }
 		}
 	} else if (ucType == MIDI_NOTE_OFF) {
 		float freq = s_KeyFrequency[ucKeyNumber];
