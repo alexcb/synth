@@ -56,6 +56,7 @@ typedef struct {
 	float* pitch;
 	float* mod;
 	float* key_freq;
+	float* freq_log2;
 	float* velocity;
 	float* c1;
 	float* c2;

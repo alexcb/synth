@@ -51,6 +51,16 @@ void synth_clear(struct key* keys)
 		struct osc* p = keys[i].oscs;
 		memset(&(keys[i]), 0, sizeof(struct key));
 		keys[i].oscs = p;
+		for (int j = 0; j < NUM_OSCS; j++) {
+			parser_cleanup(&p[j].freq);
+			parser_cleanup(&p[j].input);
+			parser_cleanup(&p[j].drive);
+			parser_cleanup(&p[j].output_volume_m);
+			parser_cleanup(&p[j].attack);
+			parser_cleanup(&p[j].decay);
+			parser_cleanup(&p[j].sustain);
+			parser_cleanup(&p[j].release);
+		}
 		memset(p, 0, sizeof(struct osc) * NUM_OSCS);
 	}
 }
@@ -71,7 +81,7 @@ void set_float_param(parser_state* p, float v)
 	// p->v = NULL;
 }
 
-int parse_float_param(const char* s, parser_state* p, struct osc* osc, struct params* param_values, struct key* key_param_values)
+int parse_float_param(const char* s, parser_state* p, struct osc* osc, struct params* param_values, struct key* key_param_values, bool use_delta)
 {
 
 	variable_pointers vars = {
@@ -83,97 +93,25 @@ int parse_float_param(const char* s, parser_state* p, struct osc* osc, struct pa
 		.c2 = &(param_values->c2),
 		.c3 = &(param_values->c3),
 		.c4 = &(param_values->c4),
-		.osc1 = &(key_param_values->oscs[0].output), // TODO: dont have these hardcoded since the max num is defined as a macro const
-		.osc2 = &(key_param_values->oscs[1].output),
-		.osc3 = &(key_param_values->oscs[2].output),
-		.osc4 = &(key_param_values->oscs[3].output),
-		.osc5 = &(key_param_values->oscs[4].output),
 	};
+	if (use_delta) {
+		vars.osc1 = &(key_param_values->oscs[0].delta_output);
+		vars.osc2 = &(key_param_values->oscs[1].delta_output);
+		vars.osc3 = &(key_param_values->oscs[2].delta_output);
+		vars.osc4 = &(key_param_values->oscs[3].delta_output);
+		vars.osc5 = &(key_param_values->oscs[4].delta_output);
+	} else {
+		vars.osc1 = &(key_param_values->oscs[0].output);
+		vars.osc2 = &(key_param_values->oscs[1].output);
+		vars.osc3 = &(key_param_values->oscs[2].output);
+		vars.osc4 = &(key_param_values->oscs[3].output);
+		vars.osc5 = &(key_param_values->oscs[4].output);
+	}
 
 	if (parser(s, p, &vars)) {
 		return 1;
 	}
 	return 0;
-	// float result = eval(p.ast_root);
-	// printf("%f\n", result);
-
-	// bool float_found = false;
-	// for (; acb_isspace(*s); s++)
-	// 	;
-	// const char* next_s = NULL;
-	// p->m = acb_strtof(s, &next_s);
-	// if (next_s == NULL) {
-	// 	p->m = 1.0;
-	// } else {
-	// 	float_found = true;
-	// }
-	// for (; acb_isspace(*next_s); next_s++)
-	// 	;
-	// if (float_found) {
-	// 	if (*next_s == '\0') {
-	// 		p->v = NULL;
-	// 		p->a = 0.0;
-	// 		return 0;
-	// 	}
-	// 	if (*next_s != '*') {
-	// 		return 1;
-	// 	}
-	// 	next_s++;
-	// 	for (; acb_isspace(*next_s); next_s++)
-	// 		;
-	// }
-	// char name[1024];
-	// const char* last = NULL;
-	// for (int i = 0;; i++) {
-	// 	name[i] = next_s[i];
-	// 	if (name[i] == ' ' || name[i] == '+') {
-	// 		name[i] = '\0';
-	// 		last = next_s + i + 1;
-	// 		break;
-	// 	}
-	// 	if (name[i] == '\0') {
-	// 		break;
-	// 	}
-	// }
-	// if (strcasecmp(name, "pitch") == 0) {
-	// 	p->v = &(param_values->pitch);
-	// } else if (strcasecmp(name, "mod") == 0) {
-	// 	p->v = &(param_values->mod);
-	// } else if (strcasecmp(name, "key_freq") == 0) {
-	// 	p->v = &(osc->key_freq);
-	// } else if (strcasecmp(name, "velocity") == 0) {
-	// 	p->v = &(osc->key_velocity);
-	// } else if (strcasecmp(name, "c1") == 0) {
-	// 	p->v = &(param_values->c1);
-	// } else if (strcasecmp(name, "c2") == 0) {
-	// 	p->v = &(param_values->c2);
-	// } else if (strcasecmp(name, "c3") == 0) {
-	// 	p->v = &(param_values->c3);
-	// } else if (strcasecmp(name, "c4") == 0) {
-	// 	p->v = &(param_values->c4);
-	// } else {
-	// 	return 1;
-	// }
-
-	// if (!last) {
-	// 	p->a = 0.0;
-	// 	return 0;
-	// }
-
-	// for (; acb_isspace(*last); last++)
-	// 	;
-
-	// // TODO should also support a -, but all this code needs to be reworked to return an AST instead
-	// if (last[0] != '+') {
-	// 	return 0;
-	// }
-	// last++;
-	// for (; acb_isspace(*last); last++)
-	// 	;
-
-	// p->a = acb_strtof(last, NULL);
-
-	// return 0;
 }
 
 float get_float_param(parser_state* p)
@@ -279,7 +217,6 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 	synth_error_message[0] = '\0';
 
 	int osc_num;
-	int osc_type;
 
 	char line[MAX_LINE];
 	char key[MAX_LINE];
@@ -349,17 +286,16 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 			}
 
 			// init defaults
-			if (parse_float_param("1.0*key_freq", &osc->freq, osc, param_values, key_param_values)) {
+			if (parse_float_param("key_freq", &osc->freq, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to init osc freq value ");
 				return 1;
 			}
+			set_float_param(&osc->input, 0.0);
 			set_float_param(&osc->drive, 1.0);
 			set_float_param(&osc->attack, ATTACK_MIN);
 			set_float_param(&osc->sustain, 1.0);
 			set_float_param(&osc->decay, DECAY_MIN);
 			set_float_param(&osc->release, 0.0);
-			osc->phase_input_m = 1.0;
-			osc->amp_input_m = 1.0;
 			set_float_param(&osc->output_volume_m, 1.0);
 			osc->wave_type = WAVE_TYPE_SINE;
 
@@ -397,90 +333,52 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 			}
 		}
 
-		// printf("got key: %s; value: %s\n", key, value);
-
 		if (strcmp(key, "type") == 0) {
 			osc->wave_type = parse_wave_type(value);
 		} else if (strcmp(key, "freq") == 0) {
-			if (parse_float_param(value, &osc->freq, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->freq, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse freq ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
-		} else if (strcmp(key, "detune") == 0) {
-			if (parse_float_param(value, &osc->detune, osc, param_values, key_param_values)) {
-				strcpy(synth_error_message, "failed to parse detune ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else if (strcmp(key, "detune2") == 0) { // TODO change float_param to support arithmatic, e.g. detune=0.3*lfo1+pitch
-			if (parse_float_param(value, &osc->detune2, osc, param_values, key_param_values)) {
-				strcpy(synth_error_message, "failed to parse detune2 ");
+		} else if (strcmp(key, "input") == 0) {
+			if (parse_float_param(value, &osc->input, osc, param_values, key_param_values, true)) {
+				strcpy(synth_error_message, "failed to parse input ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "output") == 0) {
-			if (parse_float_param(value, &osc->output_volume_m, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->output_volume_m, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse output ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "drive") == 0) {
-			if (parse_float_param(value, &osc->drive, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->drive, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse drive ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
-		} else if (strcmp(key, "phase_input") == 0) {
-			if (parse_osc(value, &osc_num) != 0) {
-				strcpy(synth_error_message, "failed to parse phase_input ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-			int osc_i = osc_num_to_index(osc_num);
-			if (osc_i < 0) {
-				strcpy(synth_error_message, "failed to convert phase_input ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-			osc->phase_input = &oscs[osc_i];
-		} else if (strcmp(key, "phase_input_m") == 0) {
-			osc->phase_input_m = acb_atof(value);
-		} else if (strcmp(key, "amp_input") == 0) {
-			if (parse_osc(value, &osc_num) != 0) {
-				strcpy(synth_error_message, "failed to parse amp_input ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-			int osc_i = osc_num_to_index(osc_num);
-			if (osc_i < 0) {
-				strcpy(synth_error_message, "failed to convert amp_input ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-			osc->amp_input = &oscs[osc_i];
-		} else if (strcmp(key, "amp_input_m") == 0) {
-			osc->amp_input_m = acb_atof(value);
 		} else if (strcmp(key, "attack") == 0) {
-			if (parse_float_param(value, &osc->attack, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->attack, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse attack ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "decay") == 0) {
-			if (parse_float_param(value, &osc->decay, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->decay, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse decay ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "sustain") == 0) {
-			if (parse_float_param(value, &osc->sustain, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->sustain, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse sustain ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
 			}
 		} else if (strcmp(key, "release") == 0) {
-			if (parse_float_param(value, &osc->release, osc, param_values, key_param_values)) {
+			if (parse_float_param(value, &osc->release, osc, param_values, key_param_values, false)) {
 				strcpy(synth_error_message, "failed to parse release ");
 				strcpy(synth_error_message + strlen(synth_error_message), value);
 				return 1;
@@ -500,20 +398,20 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		return;
 	}
 
+	float last_output = osc->output;
+
 	float freq = get_float_param(&osc->freq);
 	if (freq <= 0.0) {
 		osc->output = 0.0f;
 		return;
 	}
 
-	// freq = exp2f(log2f(freq) + params->pitch * osc->pitch_m + params->mod * osc->mod_freq_m + get_float_param(&osc->detune));
-	freq = exp2f(log2f(freq) + get_float_param(&osc->detune) + get_float_param(&osc->detune2));
+	float input = get_float_param(&osc->input);
 
-	if (osc->phase_input && osc->phase_input->wave_type) {
-		freq += osc->phase_input->output * osc->phase_input_m;
+	osc->wave_pos = fmod(osc->wave_pos + dt * freq + input, 1.f);
+	if (osc->wave_pos < 0.0f) {
+		osc->wave_pos += 1.f;
 	}
-
-	osc->wave_pos = fmod(osc->wave_pos + dt * freq, 1.f);
 
 	switch (osc->wave_type) {
 
@@ -582,10 +480,6 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 	}
 
-	if (osc->amp_input && osc->amp_input->wave_type) {
-		osc->output *= (osc->amp_input->output + 1.0) / 2.0 * osc->amp_input_m;
-	}
-
 	osc->output *= get_float_param(&osc->drive);
 
 	if (osc->output > 1.0) {
@@ -607,6 +501,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 		}
 	}
 	osc->output *= osc->output_volume;
+	osc->delta_output = osc->output - last_output;
 }
 
 void get_key(struct key* keys, float freq, struct key** key, bool insert)
@@ -621,17 +516,39 @@ void get_key(struct key* keys, float freq, struct key** key, bool insert)
 		// key was not found, don't insert one
 		return;
 	}
-	float oldest_pressed = 0.0;
-	int oldest_i = 0;
+
+	// next look for keys that are no long active
 	for (int i = 0; i < MAX_KEYS; i++) {
 		if (keys[i].freq == 0.0) {
 			*key = &keys[i];
 			return;
 		}
-		if (keys[i].pressed_at > 0.0 && (oldest_pressed == 0.0 || keys[i].pressed_at < oldest_pressed)) {
-			oldest_pressed = keys[i].pressed_at;
+	}
+
+	// next look for keys that have been released, and pick the oldest
+	int oldest_i = -1;
+	float oldest_released = 0.0;
+	for (int i = 0; i < MAX_KEYS; i++) {
+		if (keys[i].released_at > 0.0 && keys[i].released_at > oldest_released) {
+			oldest_released = keys[i].released_at;
 			oldest_i = i;
 		}
 	}
+	if (oldest_i < 0) {
+		// if they are all being held, look for the oldest pressed
+		float oldest_pressed = 0.0;
+		for (int i = 0; i < MAX_KEYS; i++) {
+			if (keys[i].pressed_at > 0.0 && (oldest_pressed == 0.0 || keys[i].pressed_at < oldest_pressed)) {
+				oldest_pressed = keys[i].pressed_at;
+				oldest_i = i;
+			}
+		}
+	}
+
+	if (oldest_i < 0) {
+		// give up and use the first one
+		oldest_i = 0;
+	}
+
 	*key = &keys[oldest_i];
 }

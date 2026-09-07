@@ -16,7 +16,7 @@ uint32_t bad_normal(uint32_t n)
 // returns a random float between -1 and 1, normally centered around 0
 float bad_normalf()
 {
-	return ((float)bad_normal(200) - 100.f) / 100.f;
+	return bad_normal(2000) / 1000.f - 1.f;
 }
 
 // returns a random float between 0 and 1

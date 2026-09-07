@@ -199,15 +199,18 @@ void CMiniOrgan::LoadPatch(const char* patch)
 	char* patch_contents_copy = static_cast<char*>(::operator new(n + 1));
 
 	for (size_t i = 0; i < MAX_KEYS; i++) {
-		tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
-		hackmsg.Append(tmp);
+		// tmp.Format("loading patch for key %p (freq set to %f);", &keys[i], keys[i].freq);
+		// hackmsg.Append(tmp);
 		strcpy(patch_contents_copy, patch);
 		if (load_patch(patch_contents_copy, keys[i].oscs, s_pThis->voice_manager.params, &(keys[i])) != 0) {
 			tmp.Format("loading patch for key %p failed: %s;", &keys[i], load_patch_err());
 			hackmsg.Append(tmp);
+			delete patch_contents_copy;
 			return;
 		}
 	}
+	tmp.Format("loading patch worked!");
+	hackmsg.Append(tmp);
 
 	delete patch_contents_copy;
 }
@@ -484,6 +487,9 @@ void CMiniOrgan::CheckSerialForUpdates()
 		// TODO load the patch
 		serial_buffer_state = SERIAL_BUFFER_STATE_INIT;
 		serial_buffer_len = 0;
+
+		tmp.Format("c1=%f c2=%f c3=%f c4=%f", voice_manager.params->c1, voice_manager.params->c2, voice_manager.params->c3, voice_manager.params->c4);
+		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
 	}
 }
 
@@ -543,8 +549,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 				struct osc* osc = &k->oscs[i];
 
 				// TODO remove these, since they are attached via the key struct
-				osc->key_freq = freq;
-				osc->key_velocity = k->velocity;
+				// osc->key_freq = freq;
+				// osc->key_velocity = k->velocity;
 
 				if (keep_output && osc->active) {
 					osc->output_volume_attack_start = osc->output_volume;

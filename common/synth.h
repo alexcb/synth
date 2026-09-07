@@ -48,14 +48,9 @@ void foo(char* p);
 
 struct osc {
 	float wave_pos;
-	parser_state freq;
-	parser_state detune;
-	parser_state detune2; // TODO delete this once float_param supports referening multiple params
 	int wave_type;
-	float phase_input_m;
-	struct osc* phase_input;
-	float amp_input_m;
-	struct osc* amp_input;
+	parser_state freq;
+	parser_state input;
 	parser_state drive;
 	parser_state output_volume_m;
 	parser_state attack; // time from 0 to 1
@@ -63,15 +58,12 @@ struct osc {
 	parser_state sustain; // level ranging from 0 to 1
 	parser_state release; // time from sustain level to 0
 
-	// these can be referenced by float_param
-	float key_freq;
-	float key_velocity;
-
 	bool active;
 	float output_volume; // set by ARSD envolop calcs
 	float output_volume_at_release;
 	float output_volume_attack_start;
 	float output;
+	float delta_output; // used by input param
 };
 
 struct key {

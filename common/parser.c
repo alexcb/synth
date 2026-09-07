@@ -132,6 +132,10 @@ int resolve_variable_address(parser_state* P, const char* s, int strlen, float**
 		*memory_address = P->vars->key_freq;
 		return 0;
 	}
+	if (strncmp(s, "freq_log2", strlen) == 0) {
+		*memory_address = P->vars->freq_log2;
+		return 0;
+	}
 	if (strncmp(s, "velocity", strlen) == 0) {
 		*memory_address = P->vars->velocity;
 		return 0;

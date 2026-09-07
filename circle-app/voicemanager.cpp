@@ -123,10 +123,14 @@ void VoiceManager::produce_keys(unsigned nCore)
 				continue;
 			}
 			bool done = true;
+			float key_output = 0.0f;
+			float output_scaling = 0.0f;
 			for (int j = 0; j < NUM_OSCS; j++) {
 				struct osc* osc = &k->oscs[j];
 				osc_set_output(k, osc, params, t, dt);
-				output += osc->output * get_float_param(&osc->output_volume_m);
+				float output_volume = get_float_param(&osc->output_volume_m);
+				key_output += osc->output * output_volume;
+				output_scaling += output_volume;
 				if (osc->active) {
 					done = false;
 				}
@@ -139,6 +143,10 @@ void VoiceManager::produce_keys(unsigned nCore)
 				k->released_at = 0.f;
 				k->freq = 0.f;
 			}
+			if (output_scaling > 0.1) {
+				key_output /= output_scaling;
+			}
+			output += key_output;
 		}
 		m_fOutputLevel[nCore][chunk_i] = output;
 	}
