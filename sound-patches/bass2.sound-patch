@@ -1,6 +1,6 @@
 [osc1]
 type=sine
-freq=key_freq*0.5+osc5*key_freq*0.01 + key_freq*pitch*0.059463 # TODO need to support parenthesis to make this cleaner
+freq=key_freq*0.5 + key_freq*pitch*0.059463 # TODO need to support parenthesis to make this cleaner
 input=osc2*0.7*c1
 drive=1+velocity*velocity*5
 output=1.0

@@ -1,0 +1,25 @@
+[osc1]
+type=sine
+freq=key_freq + key_freq*pitch
+input=osc1*velocity*velocity*2
+drive=0.25
+output=0.0
+attack=0.1
+decay=0.2
+sustain=0
+release=0
+
+[osc2]
+type=sine
+freq=key_freq*0.5
+input=osc1+osc3
+output=1.0
+
+[osc3]
+type=sine
+freq=key_freq*0.125
+output=1.0
+attack=0.3
+decay=0.6
+sustain=0.3
+release=1
