@@ -594,16 +594,8 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			hackmsg.Format("got MIDI_CC %u", pPacket[1]);
 		}
 	} else if (ucType == 14) {
-		if (pPacket[1] == 0) {
-			unsigned pitch_bend = pPacket[2]; // 64 is off (middle pos), range is 0 to 127
-			s_pThis->m_nPitchBend = ((float)pitch_bend - 64.f) / 64.f;
-			// hackmsg.Format("pitch bend %u -> %f", pitch_bend, s_pThis->m_nPitchBend); // 0 -> -1, 64 -> 0, 127 -> 0.97
-		} else if (pPacket[1] == 127 && pPacket[2] == 127) {
-			// special case since there are 129 bits for the pitch wheel, this value represents the max bend upwards to reach 1.0
-			s_pThis->m_nPitchBend = 1.0f;
-		} else {
-			hackmsg.Format("got ucType=14 %u %u", pPacket[1], pPacket[2]);
-		}
+		u16 bend_14bit = (pPacket[2] << 7) | (pPacket[1] & 0x7F);
+		s_pThis->m_nPitchBend = (float)(bend_14bit - 8192) / 8192.0f;
 	} else {
 		// TODO handle 14 (pitch bend)
 		hackmsg.Format("got unknown type %u", ucType);
