@@ -1,0 +1,18 @@
+[osc1]
+type=sine
+freq=key_freq + key_freq*pitch
+input=osc1*velocity*velocity*2
+drive=0.25
+output=1.0
+attack=0.01
+decay=0.02
+sustain=0
+release=0
+
+[combfilter]
+feedback=0.95
+pitch=key_freq*0.5
+attack=0.01
+decay=0.02
+sustain=1
+release=0.1

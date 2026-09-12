@@ -443,6 +443,7 @@ void CMiniOrgan::CheckSerialForUpdates()
 	if (memmem(serial_buffer, serial_buffer_len, reboot_magic_string, strlen(reboot_magic_string))) {
 		tmp.Format("found a reboot");
 		CLogger::Get()->Write(FromMiniOrgan, LogNotice, tmp);
+		Cancel();
 		reboot();
 		assert(0); // should never get here
 	}
@@ -548,17 +549,16 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i];
 
-				// TODO remove these, since they are attached via the key struct
-				// osc->key_freq = freq;
-				// osc->key_velocity = k->velocity;
-
 				if (keep_output && osc->active) {
 					osc->output_volume_attack_start = osc->output_volume;
 				} else {
 					osc->output_volume_attack_start = 0;
 				}
-				osc->active = true;
+				if (osc->wave_type != WAVE_TYPE_NONE) {
+					osc->active = true;
+				}
 			}
+			k->comb_filter.active = true;
 		}
 	} else if (ucType == MIDI_NOTE_OFF) {
 		float freq = s_KeyFrequency[ucKeyNumber];

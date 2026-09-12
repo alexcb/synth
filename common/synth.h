@@ -4,6 +4,7 @@ extern "C" {
 
 #pragma once
 
+#include "comb_filter.h"
 #include "parser.h"
 #include <stdbool.h>
 
@@ -72,6 +73,7 @@ struct key {
 	float released_at;
 	float velocity;
 	struct osc* oscs;
+	struct comb_filter comb_filter;
 
 	float future_released_at; // only to be used while using computer keyboard trigger
 };

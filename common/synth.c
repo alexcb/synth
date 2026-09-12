@@ -223,6 +223,7 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 	char value[MAX_LINE];
 
 	struct osc* osc = NULL;
+	struct comb_filter* combfilter = NULL;
 	while (*src) {
 		size_t n = 0;
 		char* eol = strchr(src, '\n');
@@ -264,44 +265,48 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 			line[n - 1] = '\0';
 			char* s = &line[1];
 
-			if (parse_osc(s, &osc_num) != 0) {
-				// circle doesnt have sprintf
-				strcpy(synth_error_message, "failed to parse ");
+			osc = NULL;
+			combfilter = NULL;
+			if (parse_osc(s, &osc_num) == 0) {
+				if (osc_num < 1 || osc_num > NUM_OSCS) {
+					strcpy(synth_error_message, "expected osc number in range 1-10 while parsing ");
+					strcpy(synth_error_message + strlen(synth_error_message), s);
+					return 1;
+				}
+				osc = &oscs[osc_num_to_index(osc_num)];
+				if (osc->wave_type != WAVE_TYPE_NONE) {
+					// TODO I need a sprintf to make these errors better
+					strcpy(synth_error_message, "osc already defined ");
+					strcpy(synth_error_message + strlen(synth_error_message), s);
+					return 1;
+				}
+
+				// init defaults
+				if (parse_float_param("key_freq", &osc->freq, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to init osc freq value ");
+					return 1;
+				}
+				set_float_param(&osc->input, 0.0);
+				set_float_param(&osc->drive, 1.0);
+				set_float_param(&osc->attack, ATTACK_MIN);
+				set_float_param(&osc->sustain, 1.0);
+				set_float_param(&osc->decay, DECAY_MIN);
+				set_float_param(&osc->release, 0.0);
+				set_float_param(&osc->output_volume_m, 1.0);
+				osc->wave_type = WAVE_TYPE_SINE;
+
+			} else if (strcmp(s, "combfilter") == 0) {
+				combfilter = &(key_param_values->comb_filter);
+				set_float_param(&combfilter->attack, ATTACK_MIN);
+				set_float_param(&combfilter->sustain, 1.0);
+				set_float_param(&combfilter->decay, DECAY_MIN);
+				set_float_param(&combfilter->release, 0.0);
+			} else {
+				strcpy(synth_error_message, "failed to parse section header ");
 				strcpy(synth_error_message + strlen(synth_error_message), s);
 				return 1;
 			}
 
-			if (osc_num < 1 || osc_num > NUM_OSCS) {
-				// circle doesnt have sprintf
-				strcpy(synth_error_message, "expected osc number in range 1-10 while parsing ");
-				strcpy(synth_error_message + strlen(synth_error_message), s);
-				return 1;
-			}
-			osc = &oscs[osc_num_to_index(osc_num)];
-			if (osc->wave_type != WAVE_TYPE_NONE) {
-				// TODO I need a sprintf to make these errors better
-				strcpy(synth_error_message, "osc already defined ");
-				strcpy(synth_error_message + strlen(synth_error_message), s);
-				return 1;
-			}
-
-			// init defaults
-			if (parse_float_param("key_freq", &osc->freq, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to init osc freq value ");
-				return 1;
-			}
-			set_float_param(&osc->input, 0.0);
-			set_float_param(&osc->drive, 1.0);
-			set_float_param(&osc->attack, ATTACK_MIN);
-			set_float_param(&osc->sustain, 1.0);
-			set_float_param(&osc->decay, DECAY_MIN);
-			set_float_param(&osc->release, 0.0);
-			set_float_param(&osc->output_volume_m, 1.0);
-			osc->wave_type = WAVE_TYPE_SINE;
-
-			continue;
-		}
-		if (osc == NULL) {
 			continue;
 		}
 		// printf("here2 with line %s\n", line);
@@ -333,58 +338,98 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 			}
 		}
 
-		if (strcmp(key, "type") == 0) {
-			osc->wave_type = parse_wave_type(value);
-		} else if (strcmp(key, "freq") == 0) {
-			if (parse_float_param(value, &osc->freq, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse freq ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
+		if (osc != NULL) {
+			if (strcmp(key, "type") == 0) {
+				osc->wave_type = parse_wave_type(value);
+			} else if (strcmp(key, "freq") == 0) {
+				if (parse_float_param(value, &osc->freq, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse freq ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "input") == 0) {
+				if (parse_float_param(value, &osc->input, osc, param_values, key_param_values, true)) {
+					strcpy(synth_error_message, "failed to parse input ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "output") == 0) {
+				if (parse_float_param(value, &osc->output_volume_m, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse output ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "drive") == 0) {
+				if (parse_float_param(value, &osc->drive, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse drive ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "attack") == 0) {
+				if (parse_float_param(value, &osc->attack, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse attack ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "decay") == 0) {
+				if (parse_float_param(value, &osc->decay, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse decay ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "sustain") == 0) {
+				if (parse_float_param(value, &osc->sustain, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse sustain ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "release") == 0) {
+				if (parse_float_param(value, &osc->release, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse release ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else {
+				// printf("unhandled line %s\n", key);
 			}
-		} else if (strcmp(key, "input") == 0) {
-			if (parse_float_param(value, &osc->input, osc, param_values, key_param_values, true)) {
-				strcpy(synth_error_message, "failed to parse input ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
+		} else if (combfilter != NULL) {
+			if (strcmp(key, "feedback") == 0) {
+				if (parse_float_param(value, &combfilter->feedback_gain, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse feedback ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "pitch") == 0) {
+				if (parse_float_param(value, &combfilter->delay_pitch, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse pitch ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "attack") == 0) {
+				if (parse_float_param(value, &combfilter->attack, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse attack ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "decay") == 0) {
+				if (parse_float_param(value, &combfilter->decay, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse decay ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "sustain") == 0) {
+				if (parse_float_param(value, &combfilter->sustain, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse sustain ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
+			} else if (strcmp(key, "release") == 0) {
+				if (parse_float_param(value, &combfilter->release, osc, param_values, key_param_values, false)) {
+					strcpy(synth_error_message, "failed to parse release ");
+					strcpy(synth_error_message + strlen(synth_error_message), value);
+					return 1;
+				}
 			}
-		} else if (strcmp(key, "output") == 0) {
-			if (parse_float_param(value, &osc->output_volume_m, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse output ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else if (strcmp(key, "drive") == 0) {
-			if (parse_float_param(value, &osc->drive, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse drive ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else if (strcmp(key, "attack") == 0) {
-			if (parse_float_param(value, &osc->attack, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse attack ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else if (strcmp(key, "decay") == 0) {
-			if (parse_float_param(value, &osc->decay, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse decay ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else if (strcmp(key, "sustain") == 0) {
-			if (parse_float_param(value, &osc->sustain, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse sustain ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else if (strcmp(key, "release") == 0) {
-			if (parse_float_param(value, &osc->release, osc, param_values, key_param_values, false)) {
-				strcpy(synth_error_message, "failed to parse release ");
-				strcpy(synth_error_message + strlen(synth_error_message), value);
-				return 1;
-			}
-		} else {
-			// printf("unhandled line %s\n", key);
 		}
 	}
 
@@ -491,6 +536,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	// ASDR filtering
 	if (key->pressed_at > key->released_at) {
 		float time_since_press = t - key->pressed_at;
+		// FIXME osc->output_volume_attack_start isn't set anywhere, it's always 0. should it be the previous output volume?
 		osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
 		osc->output_volume_at_release = osc->output_volume;
 	} else if (key->released_at > key->pressed_at) {
