@@ -1,6 +1,6 @@
 [osc1]
 type=sine
-freq=key_freq + key_freq*pitch
+freq=key_freq*(1+pitch)
 input=osc1*velocity*velocity*2
 drive=0.25
 output=0.0

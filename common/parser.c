@@ -6,6 +6,12 @@
 #include "acb_isspace.h"
 #include "parser.h"
 
+#ifdef RUN_PARSER_TEST
+#include <stdio.h>
+#endif
+
+int parse_expression(parser_state* P, float min_bp, ast_node** ast_op);
+
 int parse_token(const char* exp, const char** remaining, Token* token)
 {
 	const char* s = NULL;
@@ -30,6 +36,14 @@ int parse_token(const char* exp, const char** remaining, Token* token)
 		return 0;
 	case '/':
 		*token = (Token) { TOKEN_SLASH, c };
+		*remaining = exp;
+		return 0;
+	case '(':
+		*token = (Token) { TOKEN_PARENTHESES_OPEN, c };
+		*remaining = exp;
+		return 0;
+	case ')':
+		*token = (Token) { TOKEN_PARENTHESES_CLOSE, c };
 		*remaining = exp;
 		return 0;
 	case '\0':
@@ -91,6 +105,9 @@ BindingPower binding_power(token_type op)
 	case TOKEN_STAR:
 	case TOKEN_SLASH:
 		return (BindingPower) { 2, 2.1 };
+	case TOKEN_PARENTHESES_OPEN:
+	case TOKEN_PARENTHESES_CLOSE:
+		return (BindingPower) { 3, 3.1 };
 	default:
 		return (BindingPower) { 0 };
 	}
@@ -197,6 +214,20 @@ int create_ast_node_from_token(parser_state* P, const Token t, ast_node** node)
 		}
 		(**node).type = AST_VARIABLE;
 		return 0;
+	case TOKEN_PARENTHESES_OPEN:
+		(**node).type = AST_PARENTHESES;
+		P->token_i++;
+		if (parse_expression(P, 0, &((**node).left_node))) {
+			return 1;
+		}
+
+		// consume final closing paren
+		Token lhs_token = current_token(P);
+		if (lhs_token.type != TOKEN_PARENTHESES_CLOSE) {
+			return 1;
+		}
+
+		return 0;
 	default:
 		// TODO set an error message
 		return 1;
@@ -214,6 +245,8 @@ ast_type token_type_to_ast_type(token_type tok)
 		return AST_MUL;
 	case TOKEN_SLASH:
 		return AST_DIV;
+	case TOKEN_PARENTHESES_OPEN:
+		return AST_PARENTHESES;
 	default:
 		return AST_ERR;
 	}
@@ -222,7 +255,7 @@ ast_type token_type_to_ast_type(token_type tok)
 int parse_expression(parser_state* P, float min_bp, ast_node** ast_op)
 {
 	Token lhs_token = current_token(P);
-	if (lhs_token.type != TOKEN_NUMBER && lhs_token.type != TOKEN_VARIABLE) {
+	if (lhs_token.type != TOKEN_NUMBER && lhs_token.type != TOKEN_VARIABLE && lhs_token.type != TOKEN_PARENTHESES_OPEN) {
 		return 1;
 	}
 	ast_node* lhs;
@@ -285,11 +318,9 @@ int parser(const char* exp, parser_state* parser_state_ptr, variable_pointers* v
 		.vars = variable_pointers_inst
 	};
 	if (parse_expression(&P, 0, &P.ast_root)) {
-		// printf("error: failed to parse expression\n");
 		goto error;
 	}
 	if (current_token(&P).type != TOKEN_EOF) {
-		// printf("error: unprocessed tokens remain (expected EOF instead)\n");
 		goto error;
 	}
 	*parser_state_ptr = P;
@@ -327,6 +358,10 @@ float eval(ast_node* n)
 		return *(n->variable_data);
 	}
 
+	if (n->type == AST_PARENTHESES) {
+		return eval(n->left_node);
+	}
+
 	lhs = eval(n->left_node);
 	rhs = eval(n->right_node);
 
@@ -345,24 +380,26 @@ float eval(ast_node* n)
 	return 0;
 }
 
-// int main(void)
-// {
-// 	char* exp = "3.14*var2+1";
-//
-// 	//exp = "1+2*5+1";
-// 	exp = "2*velocity+1-0.3";
-//
-// 	float velocity;
-// 	variable_pointers vars = {
-// 		.velocity = &velocity
-// 	};
-//
-// 	velocity = 0.4;
-//
-// 	parser_state p;
-// 	if( parser(exp, &p, &vars) ) {
-// 		return 1;
-// 	}
-// 	float result = eval(p.ast_root);
-// 	printf("%f\n", result);
-// }
+#ifdef RUN_PARSER_TEST
+int main(void)
+{
+	char* exp = "3.14*var2+1";
+
+	// exp = "1+2*5+1";
+	exp = "(velocity+1)*2";
+
+	float velocity;
+	variable_pointers vars = {
+		.velocity = &velocity
+	};
+
+	velocity = 0.4;
+
+	parser_state p;
+	if (parser(exp, &p, &vars)) {
+		return 1;
+	}
+	float result = eval(p.ast_root);
+	printf("%f\n", result);
+}
+#endif

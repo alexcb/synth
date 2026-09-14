@@ -1,6 +1,6 @@
 [osc1]
 type=sine
-freq=key_freq + key_freq*pitch
+freq=key_freq*(1+pitch)
 input=osc1 #*velocity*velocity*2
 drive=0.25
 output=1.0
@@ -11,7 +11,7 @@ release=0.03
 
 [combfilter]
 feedback=0.95
-pitch=key_freq
+pitch=key_freq*(1+pitch)
 attack=0.05
 decay=0.03
 sustain=1

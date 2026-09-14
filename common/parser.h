@@ -14,6 +14,8 @@ typedef enum { TOKEN_NONE,
 	TOKEN_STAR,
 	TOKEN_SLASH,
 	TOKEN_VARIABLE,
+	TOKEN_PARENTHESES_OPEN,
+	TOKEN_PARENTHESES_CLOSE,
 	TOKEN_EOF } token_type;
 
 typedef struct {
@@ -38,6 +40,7 @@ typedef enum { AST_FLOAT,
 	AST_DIV,
 	AST_MUL,
 	AST_VARIABLE,
+	AST_PARENTHESES,
 	AST_ERR } ast_type;
 
 typedef struct ast_node {
