@@ -28,6 +28,7 @@ struct comb_filter {
 struct key;
 
 float iir_comb_process(struct comb_filter* cf, float input, float t, float dt, struct key* key);
+void iir_comb_clear(struct comb_filter* cf);
 
 #ifdef __cplusplus
 }

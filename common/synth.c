@@ -536,8 +536,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	// ASDR filtering
 	if (key->pressed_at > key->released_at) {
 		float time_since_press = t - key->pressed_at;
-		// FIXME osc->output_volume_attack_start isn't set anywhere, it's always 0. should it be the previous output volume?
-		osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume_attack_start, get_float_param(&osc->decay), get_float_param(&osc->sustain));
+		osc->output_volume = ads_level(time_since_press, get_float_param(&osc->attack), osc->output_volume, get_float_param(&osc->decay), get_float_param(&osc->sustain));
 		osc->output_volume_at_release = osc->output_volume;
 	} else if (key->released_at > key->pressed_at) {
 		float time_since_release = t - key->released_at;

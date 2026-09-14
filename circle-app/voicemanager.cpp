@@ -131,21 +131,28 @@ void VoiceManager::produce_keys(unsigned nCore)
 				float output_volume = get_float_param(&osc->output_volume_m);
 				key_output += osc->output * output_volume;
 				// output_scaling += output_volume;
-				if (osc->active) {
-					done = false;
-				}
+				done = done && !osc->active;
 			}
 			// if (output_scaling > 0.1) {
 			//	key_output /= output_scaling;
 			// }
 
+			if (key_output > 1.0f) {
+				key_output = 1.0f;
+			} else if (key_output < -1.0f) {
+				key_output = -1.0f;
+			}
+
 			// NOTE the comb filter is similar to a delay effect, but it's only used while the key is held down
 			// however, we need to slowly taper it off when we are done, otherwise there's a big noisy drop to 0
 			// this is done by applying a ADSR envelope to it.
 			key_output = iir_comb_process(&k->comb_filter, key_output, t, dt, k);
-			if (done && k->comb_filter.active) {
-				// CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u CANT BE DONE (comb filter)", t, nCore, k->freq, i);
-				done = false;
+			done = done && !k->comb_filter.active;
+
+			if (key_output > 1.0f) {
+				key_output = 1.0f;
+			} else if (key_output < -1.0f) {
+				key_output = -1.0f;
 			}
 
 			if (done) {
@@ -155,6 +162,7 @@ void VoiceManager::produce_keys(unsigned nCore)
 				k->pressed_at = 0.f;
 				k->released_at = 0.f;
 				k->freq = 0.f;
+				iir_comb_clear(&k->comb_filter);
 			}
 			output += key_output;
 		}

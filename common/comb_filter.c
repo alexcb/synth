@@ -59,7 +59,7 @@ float iir_comb_process(struct comb_filter* cf, float input, float t, float dt, s
 	// ASDR filtering
 	if (key->pressed_at > key->released_at) {
 		float time_since_press = t - key->pressed_at;
-		cf->output_volume = ads_level(time_since_press, get_float_param(&cf->attack), 0.0f, get_float_param(&cf->decay), get_float_param(&cf->sustain));
+		cf->output_volume = ads_level(time_since_press, get_float_param(&cf->attack), cf->output_volume, get_float_param(&cf->decay), get_float_param(&cf->sustain));
 		cf->output_volume_at_release = cf->output_volume;
 	} else if (key->released_at > key->pressed_at) {
 		float time_since_release = t - key->released_at;
@@ -70,4 +70,13 @@ float iir_comb_process(struct comb_filter* cf, float input, float t, float dt, s
 	}
 
 	return output * cf->output_volume;
+}
+
+void iir_comb_clear(struct comb_filter* cf)
+{
+	cf->active = false;
+	memset(cf->buffer, 0, sizeof(float) * MAX_COMB_FILTER_BUCKETS);
+	cf->index = 0;
+	cf->output_volume_at_release = 0.f;
+	cf->output_volume = 0.f;
 }

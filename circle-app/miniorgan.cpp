@@ -548,15 +548,15 @@ void CMiniOrgan::MIDIPacketHandler(unsigned nCable, u8* pPacket, unsigned nLengt
 			k->released_at = 0.0f;
 			for (int i = 0; i < NUM_OSCS; i++) {
 				struct osc* osc = &k->oscs[i];
-
-				if (keep_output && osc->active) {
-					osc->output_volume_attack_start = osc->output_volume;
-				} else {
-					osc->output_volume_attack_start = 0;
+				if (!keep_output) {
+					osc->output_volume = 0;
 				}
 				if (osc->wave_type != WAVE_TYPE_NONE) {
 					osc->active = true;
 				}
+			}
+			if (!keep_output) {
+				iir_comb_clear(&k->comb_filter);
 			}
 			k->comb_filter.active = true;
 		}
