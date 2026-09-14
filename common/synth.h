@@ -23,20 +23,10 @@ extern "C" {
 #define OSC_TYPE_VFO 1
 #define OSC_TYPE_LFO 2
 
-#define ATTACK_MIN 0.01
-#define DECAY_MIN 0.01
-
 // IMPORTANT: leave this as 5, since it's hardcoded in synth.c
 #define NUM_OSCS 5
 
 #define MAX_KEYS 8
-
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
-#ifndef MIN
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
 
 // TODO remove this
 void foo(char* p);

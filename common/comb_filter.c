@@ -1,4 +1,5 @@
 #include "comb_filter.h"
+#include "adsr_envelope.h"
 #include "synth.h"
 #include <assert.h>
 
@@ -10,10 +11,6 @@ float get_float_param_needs_help(parser_state* p)
 	}
 	return eval(p->ast_root);
 }
-
-// TODO move theses into an envolope.h
-float ads_level(float t, float attack, float attack_start, float decay, float sustain);
-float r_level(float t, float orig_vol, float release);
 
 // Process a single audio sample
 float iir_comb_process(struct comb_filter* cf, float input, float t, float dt, struct key* key)

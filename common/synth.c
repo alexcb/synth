@@ -1,4 +1,5 @@
 #include "synth.h"
+#include "adsr_envelope.h"
 #include "bad_rand.h"
 #include "parser.h"
 #include "sine_table.h"
@@ -178,29 +179,6 @@ int parse_osc(const char* s, int* n)
 	return 0;
 }
 
-float ads_level(float t, float attack, float attack_start, float decay, float sustain)
-{
-	attack = MAX(attack, ATTACK_MIN);
-	decay = MAX(decay, DECAY_MIN);
-	if (t < attack) {
-		return MAX(t / attack, attack_start);
-	}
-	t -= attack;
-	if (t < decay) {
-		return 1.0 - t / decay * (1.0 - sustain);
-	}
-	t -= decay;
-	return sustain;
-}
-float r_level(float t, float orig_vol, float release)
-{
-	release = MAX(release, 0.03); // TODO there's a bug where keys stop working when this is 0
-	if (t > release) {
-		return 0.f;
-	}
-	return orig_vol * (1.0 - t / release);
-}
-
 // osc_num is from 1 to NUM_OSCS (not 0-indexed)
 int osc_num_to_index(int osc_num)
 {
@@ -291,7 +269,7 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 				set_float_param(&osc->attack, ATTACK_MIN);
 				set_float_param(&osc->sustain, 1.0);
 				set_float_param(&osc->decay, DECAY_MIN);
-				set_float_param(&osc->release, 0.0);
+				set_float_param(&osc->release, RELEASE_MIN);
 				set_float_param(&osc->output_volume_m, 1.0);
 				osc->wave_type = WAVE_TYPE_SINE;
 
@@ -300,7 +278,7 @@ int load_patch(char* src, struct osc* oscs, struct params* param_values, struct 
 				set_float_param(&combfilter->attack, ATTACK_MIN);
 				set_float_param(&combfilter->sustain, 1.0);
 				set_float_param(&combfilter->decay, DECAY_MIN);
-				set_float_param(&combfilter->release, 0.0);
+				set_float_param(&combfilter->release, RELEASE_MIN);
 			} else {
 				strcpy(synth_error_message, "failed to parse section header ");
 				strcpy(synth_error_message + strlen(synth_error_message), s);
@@ -525,13 +503,7 @@ void osc_set_output(struct key* key, struct osc* osc, struct params* params, flo
 	}
 	}
 
-	osc->output *= get_float_param(&osc->drive);
-
-	if (osc->output > 1.0) {
-		osc->output = 1.0;
-	} else if (osc->output < -1.0) {
-		osc->output = -1.0;
-	}
+	osc->output = clamp_output(osc->output * get_float_param(&osc->drive));
 
 	// ASDR filtering
 	if (key->pressed_at > key->released_at) {

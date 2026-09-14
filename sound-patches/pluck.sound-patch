@@ -11,8 +11,8 @@ release=0.03
 
 [combfilter]
 feedback=0.95
-pitch=key_freq*1
+pitch=key_freq
 attack=0.05
 decay=0.03
 sustain=1
-release=0.4
+release=0.1

@@ -34,6 +34,7 @@
 #include <circle/atomic.h>
 #include <circle/string.h>
 
+#include "../common/adsr_envelope.h"
 #include "../common/synth.h"
 
 #if MAX_KEYS % CORES != 0
@@ -137,28 +138,18 @@ void VoiceManager::produce_keys(unsigned nCore)
 			//	key_output /= output_scaling;
 			// }
 
-			if (key_output > 1.0f) {
-				key_output = 1.0f;
-			} else if (key_output < -1.0f) {
-				key_output = -1.0f;
-			}
+			key_output = clamp_output(key_output);
 
 			// NOTE the comb filter is similar to a delay effect, but it's only used while the key is held down
 			// however, we need to slowly taper it off when we are done, otherwise there's a big noisy drop to 0
 			// this is done by applying a ADSR envelope to it.
-			key_output = iir_comb_process(&k->comb_filter, key_output, t, dt, k);
+			key_output = clamp_output(iir_comb_process(&k->comb_filter, key_output, t, dt, k));
 			done = done && !k->comb_filter.active;
 
-			if (key_output > 1.0f) {
-				key_output = 1.0f;
-			} else if (key_output < -1.0f) {
-				key_output = -1.0f;
-			}
-
 			if (done) {
-				if (k->pressed_at > 0.f) {
-					CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u is done", t, nCore, k->freq, i);
-				}
+				// if (k->pressed_at > 0.f) {
+				//	CLogger::Get()->Write("VOICEMAN", LogNotice, "t=%f core=%u freq=%f index=%u is done", t, nCore, k->freq, i);
+				// }
 				k->pressed_at = 0.f;
 				k->released_at = 0.f;
 				k->freq = 0.f;

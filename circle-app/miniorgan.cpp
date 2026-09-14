@@ -29,6 +29,7 @@
 #include <circle/startup.h>
 #include <circle/string.h>
 
+#include "../common/adsr_envelope.h"
 #include "../common/synth.h"
 #include "patch_contents.h"
 #include "voicemanager.h"
@@ -383,13 +384,7 @@ void CMiniOrgan::FillChunkBuff()
 			// TODO adjust all the pressed_at / released_at times? or just clear all keys?
 		}
 
-		float output = voice_manager.GetOutput(chunk_i);
-
-		if (output > 1.0f) {
-			output = 1.0f;
-		} else if (output < -1.0f) {
-			output = -1.0f;
-		}
+		float output = clamp_output(voice_manager.GetOutput(chunk_i));
 
 		u32 nSample = (u32)m_nNullLevel + output * m_nDiffLevel * (m_uchVolume / 127.f);
 
